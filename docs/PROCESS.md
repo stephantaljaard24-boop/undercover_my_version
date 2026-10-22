@@ -15,6 +15,7 @@ The pre-commit hook runs the format, lint, type and unit test checks on every co
 When asked to plan, as in "Please plan the pilot", write the plan to `docs/PLAN.md` and write no code.
 
 - Split the work into phases, usually 5 or 6, each building on the last.
+- Start the plan with a short "Open questions and assumptions" section: anything the documents leave unclear, and what you assumed.
 - Give each phase detailed success criteria that you can verify yourself: tests that pass, commands and their output, API calls and their responses, and pages you check in the browser with the Playwright MCP server. Write each one as a checkbox.
 - Then stop and wait until you are asked to implement the plan.
 
@@ -24,14 +25,15 @@ When asked to implement the plan, as in "Please implement the plan for the pilot
 
 1. Build it, with tests.
 2. Check every success criterion and fix whatever fails.
-3. Tick off its criteria in `docs/PLAN.md` and update `docs/STATUS.md`.
+3. Tick off its criteria in the plan's file, such as `docs/PLAN.md` or `docs/PLAN_HARNESS.md`, and update `docs/STATUS.md`.
 4. Commit. The pre-commit hook runs the checks; if it fails, fix the problem and commit again.
 
 When the last phase is done, run `npm run check` and report the results.
 
 ## Rules
 
-- Add tests with each change. Tests never call a model; use a stub model.
+- Add tests with each change. Tests never call a model, the end-to-end tests included: use a stub model, or test the screens with data already in place.
+- When a build changes the agent, run it on one claim with a real model before you hand the work over, with `MODEL_NAME=openrouter/free` unless asked otherwise, and report what it decided. This is a check by hand, not a test.
 - Outside a plan, commit each change once you have checked it.
 - Run `npm run check` before you hand work over.
 - Never use `git commit --no-verify`.

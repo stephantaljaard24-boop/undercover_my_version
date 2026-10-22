@@ -14,8 +14,8 @@ We want an AI agent, the UnderCover Agent, to work the queue the way a handler d
 - approve, decline or refer the claim
 - work out the payout when it approves
 - explain the decision in two or three sentences, along with the relevant section of the policy
+Our goal is to handle claims straight through, as accurately as our handlers do. For the pilot, someone starts the agent from the command line. It works through every waiting claim in the queue, one at a time. A claim shows as in progress while the agent works on it.
 
-Our goal is to handle claims straight through, as accurately as our handlers do.
 
 ## What the team needs to see
 
@@ -41,3 +41,4 @@ Everything is in `data/`, described in `data/README.md`: the claims queue, the p
 - No sign-in. Everyone who uses the screens sees everything.
 - No real payments.
 - No messages to customers.
+- Signing off from the screens. In the pilot, a claim over $1,000 that the agent approves stays waiting for sign-off, and its payment stays blocked. A handler signs it off outside the system for now.
