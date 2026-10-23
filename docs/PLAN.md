@@ -92,14 +92,14 @@ The pilot builds three things on the skeleton: a backend that holds the claims q
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes. Tests use a stub model and the backend's test client, and never call a model. They cover:
-  - [ ] A stub that reads the claim, approves $420.00 and pays: the claim ends `decided`, paid, with its steps recorded in order.
-  - [ ] A stub that approves $1,500.00 and pays: the pay tool returns the sign-off message, no payment is recorded, and the claim ends `awaiting_sign_off`.
-  - [ ] A stub that ends without a decision: the runner releases the claim to `waiting`.
-  - [ ] The queue runner takes every waiting claim in turn and skips claims in other states.
-  - [ ] The agent's system prompt is the text from `GET /api/instructions`.
-- [ ] A check by hand with a real model: with the backend running, `$env:MODEL_NAME="openrouter/free"; uv run -m agent CLM-1001` (on a Mac, `MODEL_NAME=openrouter/free uv run -m agent CLM-1001`) records a decision with an explanation and a policy section, and `GET /api/claims/CLM-1001/steps` lists its tool calls. I report what it decided. Then `uv run -m backend.seed`.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest -q agent` passes. Tests use a stub model and the backend's test client, and never call a model. They cover:
+  - [x] A stub that reads the claim, approves $420.00 and pays: the claim ends `decided`, paid, with its steps recorded in order.
+  - [x] A stub that approves $1,500.00 and pays: the pay tool returns the sign-off message, no payment is recorded, and the claim ends `awaiting_sign_off`.
+  - [x] A stub that ends without a decision: the runner releases the claim to `waiting`.
+  - [x] The queue runner takes every waiting claim in turn and skips claims in other states.
+  - [x] The agent's system prompt is the text from `GET /api/instructions`.
+- [x] A check by hand with a real model: with the backend running, `$env:MODEL_NAME="openrouter/free"; uv run -m agent CLM-1001` (on a Mac, `MODEL_NAME=openrouter/free uv run -m agent CLM-1001`) records a decision with an explanation and a policy section, and `GET /api/claims/CLM-1001/steps` lists its tool calls. I report what it decided. Then `uv run -m backend.seed`.
+- [x] `npm run check:python` passes.
 
 ## Phase 4: the dashboard's look and the queue
 
