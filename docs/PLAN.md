@@ -133,10 +133,10 @@ The pilot builds three things on the skeleton: a backend that holds the claims q
 
 **Success criteria**
 
-- [ ] `vitest` passes with statement coverage of at least 80%, with tests for a waiting claim, a claim in progress with steps, a decided and paid claim, a declined claim, a claim waiting for sign-off, and the instructions page.
-- [ ] `e2e/claim.spec.ts` passes: through the API it puts one claim in progress with steps, one decided and paid, and one approved over the limit with its payment refused; the pages show the steps, the decision with its explanation and section, the paid amount, and the blocked payment. `e2e/instructions.spec.ts` shows the instructions.
-- [ ] With `npm run dev` running, the Playwright MCP server shows CLM-1001's page with its story, items and documents, and the instructions page shows the text of `backend/instructions.md`.
-- [ ] `npm run check:ts` and `npm run e2e` pass.
+- [x] `vitest` passes with statement coverage of at least 80%, with tests for a waiting claim, a claim in progress with steps, a decided and paid claim, a declined claim, a claim waiting for sign-off, and the instructions page.
+- [x] `e2e/claim.spec.ts` passes: through the API it puts one claim in progress with steps, one decided and paid, and one approved over the limit with its payment refused; the pages show the steps, the decision with its explanation and section, the paid amount, and the blocked payment. `e2e/instructions.spec.ts` shows the instructions.
+- [x] With `npm run dev` running, the Playwright MCP server shows CLM-1001's page with its story, items and documents, and the instructions page shows the text of `backend/instructions.md`.
+- [x] `npm run check:ts` and `npm run e2e` pass.
 
 ## Phase 6: the whole pilot, by hand, and the hand-over
 
