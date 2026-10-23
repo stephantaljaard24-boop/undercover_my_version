@@ -20,6 +20,8 @@ from backend.models import (
     Decision,
     Payment,
     Policy,
+    Status,
+    Step,
 )
 from backend.seed import seed
 
@@ -85,6 +87,20 @@ def claim_detail(conn: sqlite3.Connection, claim_id: str) -> ClaimDetail:
 def approval_limit() -> Decimal:
     text = (DATA_DIR / "company.json").read_text(encoding="utf-8")
     return json.loads(text, parse_float=Decimal)["payout_approval_limit"]
+
+
+def move(
+    conn: sqlite3.Connection, claim_id: str, source: Status, target: Status
+) -> ClaimDetail:
+    """Move a claim from one status to another, or raise a 409."""
+    row = find(conn, "SELECT status FROM claims WHERE claim_id = ?", claim_id)
+    if row["status"] != source:
+        raise HTTPException(409, f"Claim {claim_id} is {row['status']}, not {source}")
+    with conn:
+        conn.execute(
+            "UPDATE claims SET status = ? WHERE claim_id = ?", (target, claim_id)
+        )
+    return claim_detail(conn, claim_id)
 
 
 @app.get("/api/health", operation_id="health")
@@ -157,3 +173,86 @@ def get_policy_wording() -> str:
 def get_instructions() -> str:
     """Get the agent's instructions."""
     return INSTRUCTIONS.read_text(encoding="utf-8")
+
+
+@app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
+def start_claim(claim_id: str, conn: Db) -> ClaimDetail:
+    """Move a waiting claim to in progress."""
+    return move(conn, claim_id, "waiting", "in_progress")
+
+
+@app.post("/api/claims/{claim_id}/release", operation_id="release_claim")
+def release_claim(claim_id: str, conn: Db) -> ClaimDetail:
+    """Put a claim that is in progress back to waiting."""
+    return move(conn, claim_id, "in_progress", "waiting")
+
+
+@app.get("/api/claims/{claim_id}/steps", operation_id="list_steps")
+def list_steps(claim_id: str, conn: Db) -> list[Step]:
+    """List what the agent has done on a claim, oldest first."""
+    find(conn, "SELECT claim_id FROM claims WHERE claim_id = ?", claim_id)
+    rows = conn.execute(
+        "SELECT kind, text FROM steps WHERE claim_id = ? ORDER BY id", (claim_id,)
+    )
+    return [Step(**row) for row in rows]
+
+
+@app.post("/api/claims/{claim_id}/steps", operation_id="add_step")
+def add_step(claim_id: str, step: Step, conn: Db) -> Step:
+    """Record one step the agent took on a claim."""
+    find(conn, "SELECT claim_id FROM claims WHERE claim_id = ?", claim_id)
+    with conn:
+        conn.execute(
+            "INSERT INTO steps (claim_id, kind, text) VALUES (?, ?, ?)",
+            (claim_id, step.kind, step.text),
+        )
+    return step
+
+
+@app.post("/api/claims/{claim_id}/decision", operation_id="record_decision")
+def record_decision(claim_id: str, decision: Decision, conn: Db) -> ClaimDetail:
+    """Record the decision on a claim that is in progress."""
+    row = find(conn, "SELECT status FROM claims WHERE claim_id = ?", claim_id)
+    if row["status"] != "in_progress":
+        raise HTTPException(
+            409, f"Claim {claim_id} is {row['status']}, not in_progress"
+        )
+    after = "awaiting_sign_off" if decision.payout > approval_limit() else "decided"
+    with conn:
+        conn.execute(
+            "INSERT INTO decisions VALUES (?, ?, ?, ?, ?)",
+            (
+                claim_id,
+                decision.decision,
+                str(decision.payout),
+                decision.explanation,
+                decision.policy_section,
+            ),
+        )
+        conn.execute(
+            "UPDATE claims SET status = ? WHERE claim_id = ?", (after, claim_id)
+        )
+    return claim_detail(conn, claim_id)
+
+
+@app.post("/api/claims/{claim_id}/payment", operation_id="pay_claim")
+def pay_claim(claim_id: str, payment: Payment, conn: Db) -> ClaimDetail:
+    """Pay the amount of an approved claim's payout, unless it needs sign-off."""
+    detail = claim_detail(conn, claim_id)
+    decision = detail.decision
+    if decision is None or decision.decision != "approve":
+        raise HTTPException(409, f"Claim {claim_id} has no approved payout")
+    limit = approval_limit()
+    if decision.payout > limit:
+        raise HTTPException(
+            403, f"A payout over ${limit:,.2f} needs a handler's sign-off."
+        )
+    if detail.payment:
+        raise HTTPException(409, f"Claim {claim_id} is already paid")
+    if payment.amount != decision.payout:
+        raise HTTPException(409, f"The payout is ${decision.payout:,.2f}")
+    with conn:
+        conn.execute(
+            "INSERT INTO payments VALUES (?, ?)", (claim_id, str(payment.amount))
+        )
+    return claim_detail(conn, claim_id)

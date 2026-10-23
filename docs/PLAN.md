@@ -69,15 +69,15 @@ The pilot builds three things on the skeleton: a backend that holds the claims q
 
 **Success criteria**
 
-- [ ] `uv run pytest -q backend` passes, with a test for every rule above, including:
-  - [ ] Approve $420.00, then pay $420.00: the payment is recorded and the claim is `decided`.
-  - [ ] Approve $1,500.00, then pay $1,500.00: 403, no payment recorded, and the claim stays `awaiting_sign_off`.
-  - [ ] Approve exactly $1,000.00, then pay: the payment is recorded.
-  - [ ] Paying a declined or referred claim, paying the wrong amount, and paying twice each give 409.
-  - [ ] Deciding a claim that isn't in progress gives 409; a decline with a payout above zero gives 422.
-  - [ ] A payout of `"420.005"` is recorded as `"420.01"`.
-- [ ] By hand against `npm run dev:backend`: `curl.exe` to start CLM-1003, record an approval of `1500.00`, then pay `1500.00` returns 403, and `GET /api/claims/CLM-1003` shows `awaiting_sign_off` with no payment. Then `uv run -m backend.seed` puts it back to `waiting`.
-- [ ] `npm run check:python` passes.
+- [x] `uv run pytest -q backend` passes, with a test for every rule above, including:
+  - [x] Approve $420.00, then pay $420.00: the payment is recorded and the claim is `decided`.
+  - [x] Approve $1,500.00, then pay $1,500.00: 403, no payment recorded, and the claim stays `awaiting_sign_off`.
+  - [x] Approve exactly $1,000.00, then pay: the payment is recorded.
+  - [x] Paying a declined or referred claim, paying the wrong amount, and paying twice each give 409.
+  - [x] Deciding a claim that isn't in progress gives 409; a decline with a payout above zero gives 422.
+  - [x] A payout of `"420.005"` is recorded as `"420.01"`.
+- [x] By hand against `npm run dev:backend`: `curl.exe` to start CLM-1003, record an approval of `1500.00`, then pay `1500.00` returns 403, and `GET /api/claims/CLM-1003` shows `awaiting_sign_off` with no payment. Then `uv run -m backend.seed` puts it back to `waiting`.
+- [x] `npm run check:python` passes.
 
 ## Phase 3: the UnderCover Agent and the queue runner
 
