@@ -116,10 +116,10 @@ The pilot builds three things on the skeleton: a backend that holds the claims q
 
 **Success criteria**
 
-- [ ] `vitest` passes with statement coverage of at least 80%, with tests for `toCents` and `formatCents` (including `"1250"`, `"1250.5"` and `"0.00"`), the queue's counts and rows, and the routing.
-- [ ] `e2e/queue.spec.ts` passes: it puts claims into each of the four statuses through the API, and the queue shows 25 rows, the right counts and the right badge on each of those claims.
-- [ ] With `npm run dev` running, the Playwright MCP server at `http://localhost:5173` shows the queue with 25 waiting claims in the brand's fonts and colors, in light and dark mode, and clicking a row goes to `#/claims/<id>`.
-- [ ] `npm run check:ts` passes.
+- [x] `vitest` passes with statement coverage of at least 80%, with tests for `toCents` and `formatCents` (including `"1250"`, `"1250.5"` and `"0.00"`), the queue's counts and rows, and the routing.
+- [x] `e2e/queue.spec.ts` passes: it puts claims into each of the four statuses through the API, and the queue shows 25 rows, the right counts and the right badge on each of those claims.
+- [x] With `npm run dev` running, the Playwright MCP server at `http://localhost:5173` shows the queue with 25 waiting claims in the brand's fonts and colors, in light and dark mode, and clicking a row goes to `#/claims/<id>`.
+- [x] `npm run check:ts` passes.
 
 ## Phase 5: the claim page, the live steps and the instructions
 

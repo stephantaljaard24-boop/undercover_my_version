@@ -1,19 +1,18 @@
-import { useEffect, useState } from "react";
+import { QueuePage } from "./QueuePage";
+import { useRoute } from "./route";
 
 export function App() {
-  const [status, setStatus] = useState("checking");
-
-  useEffect(() => {
-    void fetch("/api/health")
-      .then((response) => (response.ok ? "up" : "down"))
-      .catch(() => "down")
-      .then(setStatus);
-  }, []);
+  const route = useRoute();
 
   return (
-    <main>
-      <h1>UnderCover</h1>
-      <p>Backend: {status}</p>
-    </main>
+    <>
+      <header className="topbar panel">
+        <a className="brand" href="#/">
+          UnderCover
+        </a>
+        <span className="tagline">The claims desk</span>
+      </header>
+      <main>{route.page === "queue" && <QueuePage />}</main>
+    </>
   );
 }
