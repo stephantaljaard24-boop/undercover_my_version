@@ -19,10 +19,14 @@ const STEP_LABELS: Record<Step["kind"], string> = {
   reply: "Reply",
 };
 
-/** Keep watching a claim until it has a decision. */
-function pollDelay({ claim }: ClaimView): number | null {
-  if (claim.status === "in_progress") return WORKING_POLL_MS;
-  return claim.status === "waiting" ? WAITING_POLL_MS : null;
+/**
+ * Keep watching a claim until the agent has decided it and given its final
+ * reply. The agent pays and replies after it records its decision.
+ */
+function pollDelay({ claim, steps }: ClaimView): number | null {
+  if (claim.status === "waiting") return WAITING_POLL_MS;
+  const finished = claim.decision !== null && steps.at(-1)?.kind === "reply";
+  return finished ? null : WORKING_POLL_MS;
 }
 
 function PaymentLine({ claim }: Readonly<{ claim: ClaimDetail }>) {

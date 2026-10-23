@@ -151,6 +151,27 @@ it("shows a decided and paid claim, and stops watching it", async () => {
   expect(fetchMock.mock.calls).toHaveLength(calls);
 });
 
+it("keeps watching a decided claim until the agent has replied", async () => {
+  let replied = false;
+  const working = backend({ status: "decided", decision }, [
+    { kind: "tool_result", text: "Decision recorded." },
+  ]);
+  const finished = backend(
+    { status: "decided", decision, payment: { amount: "340.50" } },
+    [{ kind: "reply", text: "Approved." }],
+  );
+  const fetchMock = vi.fn((url: string) => (replied ? finished : working)(url));
+  await show(fetchMock);
+  expect(screen.getByText("Not paid yet.")).toBeDefined();
+  replied = true;
+  await act(() => vi.advanceTimersByTimeAsync(2000));
+  expect(screen.getByText("Paid $340.50.")).toBeDefined();
+  expect(screen.getByText("Approved.")).toBeDefined();
+  const calls = fetchMock.mock.calls.length;
+  await act(() => vi.advanceTimersByTimeAsync(10000));
+  expect(fetchMock.mock.calls).toHaveLength(calls);
+});
+
 it("shows a payment blocked until a handler signs off", async () => {
   await show(
     backend({

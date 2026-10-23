@@ -146,7 +146,7 @@ The pilot builds three things on the skeleton: a backend that holds the claims q
 
 **Success criteria**
 
-- [ ] With `npm run dev` running, `$env:MODEL_NAME="openrouter/free"; uv run -m agent CLM-1001` runs while the Playwright MCP server watches `#/claims/CLM-1001`: the claim shows in progress, the steps appear as the agent works, and the page ends with the decision, the explanation and the section. I report what it decided.
-- [ ] The queue page shows CLM-1001's new status and decision without a reload.
-- [ ] `docs/STATUS.md` is up to date, and every criterion in this plan is ticked.
-- [ ] `npm run check` passes: ruff, pyright and pytest with at least 80% coverage, ESLint, Prettier, tsc and vitest with at least 80% coverage, and every Playwright test.
+- [x] With `npm run dev` running, `$env:MODEL_NAME="openrouter/free"; uv run -m agent CLM-1001` runs while the Playwright MCP server watches `#/claims/CLM-1001`: the claim shows in progress, the steps appear as the agent works, and the page ends with the decision, the explanation and the section. I report what it decided.
+- [x] The queue page shows CLM-1001's new status and decision without a reload.
+- [x] `docs/STATUS.md` is up to date, and every criterion in this plan is ticked.
+- [x] `npm run check` passes: ruff, pyright and pytest with at least 80% coverage, ESLint, Prettier, tsc and vitest with at least 80% coverage, and every Playwright test.

@@ -1,6 +1,6 @@
 # Status
 
-The claims pilot, built phase by phase from `docs/PLAN.md`. Done so far: the backend's records, claim workflow and payment rule, the agent, and the dashboard.
+The claims pilot from `docs/SPEC.md` is built: the backend, the UnderCover Agent and the dashboard, to the plan in `docs/PLAN.md`.
 
 ## Run it
 
@@ -22,8 +22,12 @@ The claims pilot, built phase by phase from `docs/PLAN.md`. Done so far: the bac
 - `agent/`: LangChain's `create_agent`. `run(claim_id, thread_id)` fetches the instructions from the backend (`backend/instructions.md`) and works one claim with six tools that each call one backend operation: `get_claim`, `get_policy`, `get_customer`, `get_policy_wording`, `record_decision` and `pay_claim`. The runner, not the model, starts and releases claims and records every tool call, tool result and reply as a step; a claim that ends without a decision goes back to waiting. A payout over $1,000 is approved but its payment is refused by the backend.
 - `dashboard/`: React, Vite and TypeScript, in the brand's fonts and colors, light and dark from the system setting. Pages use hash routing (`#/`, `#/claims/CLM-1001`) and poll the backend every 3 seconds. Amounts are whole cents from the edge of `src/api.ts` on. Pages:
   - Queue: a count for each status and a row for every claim
-  - Claim (`#/claims/CLM-1001`): the claim in full, the agent's decision with its explanation and policy section, whether the payment is made or blocked for sign-off, the policy, the customer's earlier claims, and the agent's steps. It keeps polling (every 2 seconds in progress, 3 seconds waiting) until the claim is decided
+  - Claim (`#/claims/CLM-1001`): the claim in full, the agent's decision with its explanation and policy section, whether the payment is made or blocked for sign-off, the policy, the customer's earlier claims, and the agent's steps. It keeps polling (every 3 seconds while waiting, every 2 seconds after that) until the claim has a decision and the agent has given its final reply, because the agent pays and replies after it records the decision
   - Instructions (`#/instructions`): the agent's instructions, read only
 - `e2e/`: Playwright tests. They start their own backend (port 8001, a database in the temp folder, seeded fresh each run) and dashboard (port 5174), and put claims into states through the API with made-up decisions.
+
+Checked by hand with `MODEL_NAME=openrouter/free`: CLM-1001 was approved for $420.00 and paid, and CLM-1002 was approved for $580.00 and paid, with the dashboard showing the steps and the result as they happened. The agent's accuracy has not been scored against `data/evals/`.
+
+Left for later, as the spec says: signing off from the screens (a payout over $1,000 stays `awaiting_sign_off` with its payment blocked), the claims manual, sign-in, real payments and messages to customers.
 
 Loaded from `data/`: the claims, policies and customers, and the policy wording. Never loaded: `data/evals/`, `data/security/` and the claims manual.
