@@ -109,19 +109,19 @@ The pilot's code organizes the agent's work: it feeds the agent one claim at a t
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes. Tests use stub models and the backend's test client, and never call a model. They cover:
-  - [ ] the tools: `get_contents` and `read_section` return the text and record the read, and a refusal comes back as text;
-  - [ ] the pilot's behaviors still hold: approve and pay, an approval over the limit with the payment blocked, decline, refer, and steps recorded in order;
-  - [ ] a helper that reads two sections, so `GET /api/claims/CLM-1001/reads` lists them;
-  - [ ] a broken model: `work_claim` returns a failure line, the claim is `waiting`, and a second failure leaves it `needs_handler`;
-  - [ ] a model that fails once and then works is retried by the middleware, with the retry delay set to zero, and the claim is decided;
-  - [ ] a helper that ends without a decision: the claim goes back to `waiting` with an `error` step;
-  - [ ] a helper that fails after an approval: the claim is paid once, and a payment the backend refuses leaves it `awaiting_sign_off`;
-  - [ ] the helper's system prompt is the claim instructions;
-  - [ ] the default model is `deepseek/deepseek-v4.1-flash`, and `MODEL_NAME` overrides it.
-- [ ] By hand with the default model, after `uv run -m backend.seed` and with `npm run dev:backend` running, `uv run -m agent CLM-1001` records a decision with an explanation and a section. `GET /api/claims/CLM-1001/reads` lists the sections it read, and `GET /api/claims/CLM-1001/steps` its steps. I report what it decided and what it read. Then `uv run -m backend.seed`.
-- [ ] `GET /api/policy-wording` and `POST /api/claims/{claim_id}/release` are gone from `openapi.json`.
-- [ ] `docs/STATUS.md` is updated. `npm run check:python` passes.
+- [x] `uv run pytest -q agent` passes. Tests use stub models and the backend's test client, and never call a model. They cover:
+  - [x] the tools: `get_contents` and `read_section` return the text and record the read, and a refusal comes back as text;
+  - [x] the pilot's behaviors still hold: approve and pay, an approval over the limit with the payment blocked, decline, refer, and steps recorded in order;
+  - [x] a helper that reads two sections, so `GET /api/claims/CLM-1001/reads` lists them;
+  - [x] a broken model: `work_claim` returns a failure line, the claim is `waiting`, and a second failure leaves it `needs_handler`;
+  - [x] a model that fails once and then works is retried by the middleware, with the retry delay set to zero, and the claim is decided;
+  - [x] a helper that ends without a decision: the claim goes back to `waiting` with an `error` step;
+  - [x] a helper that fails after an approval: the claim is paid once, and a payment the backend refuses leaves it `awaiting_sign_off`;
+  - [x] the helper's system prompt is the claim instructions;
+  - [x] the default model is `deepseek/deepseek-v4.1-flash`, and `MODEL_NAME` overrides it.
+- [x] By hand with the default model, after `uv run -m backend.seed` and with `npm run dev:backend` running, `uv run -m agent CLM-1001` records a decision with an explanation and a section. `GET /api/claims/CLM-1001/reads` lists the sections it read, and `GET /api/claims/CLM-1001/steps` its steps. I report what it decided and what it read. Then `uv run -m backend.seed`.
+- [x] `GET /api/policy-wording` and `POST /api/claims/{claim_id}/release` are gone from `openapi.json`.
+- [x] `docs/STATUS.md` is updated. `npm run check:python` passes.
 
 ## Phase 4: the queue agent
 
@@ -147,20 +147,20 @@ The pilot's code organizes the agent's work: it feeds the agent one claim at a t
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes, with stub models that script both the queue agent and the helpers (the tests choose which one each model call belongs to by building them separately). New tests cover:
-  - [ ] a full run: the to-do list is stored with `write_todos` and updated, `get_current_run` shows the final list and the summary, and the run is finished;
-  - [ ] the cap: with a limit of 2, the third `work_claim` is refused and that claim stays `waiting`;
-  - [ ] one bad claim doesn't stop the run: a helper that fails on CLM-1001 is followed by a decided CLM-1002;
-  - [ ] a failed claim is tried again: the queue agent works CLM-1001 again and it is decided; if it fails twice it ends `needs_handler` and the run carries on;
-  - [ ] the missed-claims check: `finish_run` with a claim still waiting inside the cap is refused and names it; after the claim is worked, `finish_run` succeeds; with the cap used up, claims outside it do not block the finish;
-  - [ ] no claim is decided or paid twice: a second `work_claim` on a decided claim is refused, and a helper that records a second decision gets the backend's 409;
-  - [ ] claims are worked one at a time even when the model asks for two in one turn;
-  - [ ] the queue agent's context holds only the one-line report for each claim: none of a helper's tool calls or tool results appear in what the queue model sees;
-  - [ ] a queue agent that stops without `finish_run` still leaves a run with its last reply as the summary;
-  - [ ] the queue agent's system prompt is the queue instructions;
-  - [ ] `agent.__main__` parses no arguments, `--limit 3` and a claim id as above.
-- [ ] By hand with the default model: `uv run -m backend.seed`, `npm run dev:backend`, then `uv run -m agent --limit 2`. It prints a line for each of two claims and a summary. `GET /api/runs/current` shows the to-do list and the summary, and `GET /api/claims` shows the other 23 still `waiting`. I report what it did. Then `uv run -m backend.seed`.
-- [ ] `docs/STATUS.md` is updated. `npm run check:python` passes.
+- [x] `uv run pytest -q agent` passes, with stub models that script both the queue agent and the helpers (the tests choose which one each model call belongs to by building them separately). New tests cover:
+  - [x] a full run: the to-do list is stored with `write_todos` and updated, `get_current_run` shows the final list and the summary, and the run is finished;
+  - [x] the cap: with a limit of 2, the third `work_claim` is refused and that claim stays `waiting`;
+  - [x] one bad claim doesn't stop the run: a helper that fails on CLM-1001 is followed by a decided CLM-1002;
+  - [x] a failed claim is tried again: the queue agent works CLM-1001 again and it is decided; if it fails twice it ends `needs_handler` and the run carries on;
+  - [x] the missed-claims check: `finish_run` with a claim still waiting inside the cap is refused and names it; after the claim is worked, `finish_run` succeeds; with the cap used up, claims outside it do not block the finish;
+  - [x] no claim is decided or paid twice: a second `work_claim` on a decided claim is refused, and a helper that records a second decision gets the backend's 409;
+  - [x] claims are worked one at a time even when the model asks for two in one turn;
+  - [x] the queue agent's context holds only the one-line report for each claim: none of a helper's tool calls or tool results appear in what the queue model sees;
+  - [x] a queue agent that stops without `finish_run` still leaves a run with its last reply as the summary;
+  - [x] the queue agent's system prompt is the queue instructions;
+  - [x] `agent.__main__` parses no arguments, `--limit 3` and a claim id as above.
+- [x] By hand with the default model: `uv run -m backend.seed`, `npm run dev:backend`, then `uv run -m agent --limit 2`. It prints a line for each of two claims and a summary. `GET /api/runs/current` shows the to-do list and the summary, and `GET /api/claims` shows the other 23 still `waiting`. I report what it did. Then `uv run -m backend.seed`.
+- [x] `docs/STATUS.md` is updated. `npm run check:python` passes.
 
 ## Phase 5: the dashboard
 
@@ -177,12 +177,12 @@ The pilot's code organizes the agent's work: it feeds the agent one claim at a t
 
 **Success criteria**
 
-- [ ] `vitest` passes with statement coverage of at least 80%, with tests for: the run panel with a mixed list, with a summary and with no run; the five counts; the "Left for a handler" badge; a claim page with reads and with an `error` step; and the instructions page with both texts.
-- [ ] `e2e/queue.spec.ts` passes: through the API it starts a run, sets a list with all four item statuses, puts a claim in each of the five statuses, and the page shows the list, the five counts and the right badge on each claim.
-- [ ] `e2e/claim.spec.ts` passes: through the API it records reads and a failure, and the claim page shows the sections read and the error. `e2e/instructions.spec.ts` shows both instructions.
-- [ ] With `npm run dev` running and a run put in place through the API, the Playwright MCP server shows the queue page's run panel and the left-for-a-handler status in light and dark mode, in the brand's fonts and colors, and a claim page with its sections read.
-- [ ] `GET /api/instructions` is gone from `openapi.json`.
-- [ ] `docs/STATUS.md` is updated. `npm run check:ts` and `npm run e2e` pass.
+- [x] `vitest` passes with statement coverage of at least 80%, with tests for: the run panel with a mixed list, with a summary and with no run; the five counts; the "Left for a handler" badge; a claim page with reads and with an `error` step; and the instructions page with both texts.
+- [x] `e2e/queue.spec.ts` passes: through the API it starts a run, sets a list with all four item statuses, puts a claim in each of the five statuses, and the page shows the list, the five counts and the right badge on each claim.
+- [x] `e2e/claim.spec.ts` passes: through the API it records reads and a failure, and the claim page shows the sections read and the error. `e2e/instructions.spec.ts` shows both instructions.
+- [x] With `npm run dev` running and a run put in place through the API, the Playwright MCP server shows the queue page's run panel and the left-for-a-handler status in light and dark mode, in the brand's fonts and colors, and a claim page with its sections read.
+- [x] `GET /api/instructions` is gone from `openapi.json`.
+- [x] `docs/STATUS.md` is updated. `npm run check:ts` and `npm run e2e` pass.
 
 ## Phase 6: the whole harness, by hand, and the hand-over
 
@@ -194,7 +194,7 @@ The pilot's code organizes the agent's work: it feeds the agent one claim at a t
 
 **Success criteria**
 
-- [ ] After `uv run -m backend.seed`, with `npm run dev` running and the Playwright MCP server watching `http://localhost:5173`, `uv run -m agent --limit 5` on the default model works five claims on its own. The queue page shows the to-do list filling in and being ticked off, each claim's page shows its steps and the sections it read, and the summary appears at the end. I report what it did, including any claim that failed and was retried.
-- [ ] After that run `GET /api/claims` shows exactly five claims decided, awaiting sign-off or left for a handler, and the other 20 still `waiting`. No claim is `in_progress`.
-- [ ] `docs/SPEC.md`, `docs/TECH_STACK.md` and `docs/STATUS.md` describe the product as it now is, and every criterion in this plan is ticked.
-- [ ] `npm run check` passes: ruff, pyright and pytest with at least 80% coverage, ESLint, Prettier, tsc and vitest with at least 80% coverage, and every Playwright test.
+- [x] After `uv run -m backend.seed`, with `npm run dev` running and the Playwright MCP server watching `http://localhost:5173`, `uv run -m agent --limit 5` on the default model works five claims on its own. The queue page shows the to-do list filling in and being ticked off, each claim's page shows its steps and the sections it read, and the summary appears at the end. I report what it did, including any claim that failed and was retried.
+- [x] After that run `GET /api/claims` shows exactly five claims decided, awaiting sign-off or left for a handler, and the other 20 still `waiting`. No claim is `in_progress`.
+- [x] `docs/SPEC.md`, `docs/TECH_STACK.md` and `docs/STATUS.md` describe the product as it now is, and every criterion in this plan is ticked.
+- [x] `npm run check` passes: ruff, pyright and pytest with at least 80% coverage, ESLint, Prettier, tsc and vitest with at least 80% coverage, and every Playwright test.
