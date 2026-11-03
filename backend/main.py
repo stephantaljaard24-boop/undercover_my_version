@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from backend.db import DATA_DIR, connect, db_path
+from backend.documents import sections
 from backend.models import (
     Claim,
     ClaimDetail,
@@ -20,6 +21,8 @@ from backend.models import (
     Decision,
     Payment,
     Policy,
+    SectionRead,
+    SectionRef,
     Status,
     Step,
 )
@@ -82,6 +85,14 @@ def claim_detail(conn: sqlite3.Connection, claim_id: str) -> ClaimDetail:
         decision=decision_of(conn, claim_id),
         payment=payment_of(conn, claim_id),
     )
+
+
+def section_of(document: str, number: str) -> tuple[str, str]:
+    """Return a section's (title, text), or raise a 404."""
+    try:
+        return sections(document)[number]
+    except KeyError:
+        raise HTTPException(404, f"Section {number} of {document} not found") from None
 
 
 def approval_limit() -> Decimal:
@@ -256,3 +267,53 @@ def pay_claim(claim_id: str, payment: Payment, conn: Db) -> ClaimDetail:
             "INSERT INTO payments VALUES (?, ?)", (claim_id, str(payment.amount))
         )
     return claim_detail(conn, claim_id)
+
+
+@app.get(
+    "/api/documents/{document}/contents",
+    operation_id="get_contents",
+    response_class=PlainTextResponse,
+)
+def get_contents(document: str) -> str:
+    """List the numbers and titles of a document's sections."""
+    try:
+        found = sections(document)
+    except KeyError:
+        raise HTTPException(404, f"Document {document} not found") from None
+    return "\n".join(f"{number}. {title}" for number, (title, _) in found.items())
+
+
+@app.post(
+    "/api/claims/{claim_id}/reads",
+    operation_id="read_section",
+    response_class=PlainTextResponse,
+)
+def read_section(claim_id: str, ref: SectionRef, conn: Db) -> str:
+    """Read one section of a document and record the read on the claim."""
+    find(conn, "SELECT claim_id FROM claims WHERE claim_id = ?", claim_id)
+    _, text = section_of(ref.document, ref.section)
+    with conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO reads (claim_id, document, section)"
+            " VALUES (?, ?, ?)",
+            (claim_id, ref.document, ref.section),
+        )
+    return text
+
+
+@app.get("/api/claims/{claim_id}/reads", operation_id="list_reads")
+def list_reads(claim_id: str, conn: Db) -> list[SectionRead]:
+    """List the sections read on a claim, in the order first read."""
+    find(conn, "SELECT claim_id FROM claims WHERE claim_id = ?", claim_id)
+    rows = conn.execute(
+        "SELECT document, section FROM reads WHERE claim_id = ? ORDER BY id",
+        (claim_id,),
+    )
+    return [
+        SectionRead(
+            document=row["document"],
+            section=row["section"],
+            title=section_of(row["document"], row["section"])[0],
+        )
+        for row in rows
+    ]

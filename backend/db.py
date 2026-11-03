@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS decisions;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS steps;
+DROP TABLE IF EXISTS reads;
 CREATE TABLE claims (
     claim_id TEXT PRIMARY KEY,
     status TEXT NOT NULL,
@@ -34,6 +35,13 @@ CREATE TABLE steps (
     claim_id TEXT NOT NULL,
     kind TEXT NOT NULL,
     text TEXT NOT NULL
+);
+CREATE TABLE reads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_id TEXT NOT NULL,
+    document TEXT NOT NULL,
+    section TEXT NOT NULL,
+    UNIQUE (claim_id, document, section)
 );
 """
 

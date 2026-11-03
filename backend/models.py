@@ -122,3 +122,12 @@ class Customer(BaseModel):
 class Step(BaseModel):
     kind: StepKind
     text: str
+
+
+class SectionRef(BaseModel):
+    document: str
+    section: str
+
+
+class SectionRead(SectionRef):
+    title: str
