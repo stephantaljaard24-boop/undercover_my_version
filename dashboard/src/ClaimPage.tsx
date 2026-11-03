@@ -1,7 +1,15 @@
 import { useCallback } from "react";
 import { fetchClaimView } from "./api";
-import type { ClaimDetail, ClaimView, Customer, Policy, Step } from "./api";
+import type {
+  ClaimDetail,
+  ClaimView,
+  Customer,
+  Policy,
+  SectionRead,
+  Step,
+} from "./api";
 import {
+  DOCUMENT_LABELS,
   formatDate,
   formatType,
   STATUS_LABELS,
@@ -17,6 +25,7 @@ const STEP_LABELS: Record<Step["kind"], string> = {
   tool_call: "Tool call",
   tool_result: "Tool result",
   reply: "Reply",
+  error: "Error",
 };
 
 /**
@@ -24,6 +33,7 @@ const STEP_LABELS: Record<Step["kind"], string> = {
  * reply. The agent pays and replies after it records its decision.
  */
 function pollDelay({ claim, steps }: ClaimView): number | null {
+  if (claim.status === "needs_handler") return null;
   if (claim.status === "waiting") return WAITING_POLL_MS;
   const finished = claim.decision !== null && steps.at(-1)?.kind === "reply";
   return finished ? null : WORKING_POLL_MS;
@@ -155,6 +165,26 @@ function StepsPanel({ steps }: Readonly<{ steps: Step[] }>) {
   );
 }
 
+function ReadsPanel({ reads }: Readonly<{ reads: SectionRead[] }>) {
+  return (
+    <section className="panel card">
+      <h2>What the agent read</h2>
+      {reads.length === 0 ? (
+        <p className="muted">Nothing read yet.</p>
+      ) : (
+        <ul className="reads">
+          {reads.map((read) => (
+            <li key={`${read.document}-${read.section}`}>
+              {DOCUMENT_LABELS[read.document]}, section {read.section}:{" "}
+              {read.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function ClaimPanel({ claim }: Readonly<{ claim: ClaimDetail }>) {
   return (
     <section className="panel card">
@@ -206,7 +236,7 @@ export function ClaimPage({ claimId }: Readonly<{ claimId: string }>) {
     );
   }
 
-  const { claim, policy, customer, steps } = data;
+  const { claim, policy, customer, steps, reads } = data;
   return (
     <>
       <p>
@@ -223,6 +253,7 @@ export function ClaimPage({ claimId }: Readonly<{ claimId: string }>) {
         <ClaimPanel claim={claim} />
         <div className="side">
           <DecisionPanel claim={claim} />
+          <ReadsPanel reads={reads} />
           <PolicyPanel policy={policy} />
           <CustomerPanel customer={customer} />
         </div>

@@ -15,7 +15,8 @@ export function InstructionsPage() {
     <>
       <h1>Agent instructions</h1>
       <p className="muted">
-        What the UnderCover Agent is told on every claim. Read only.
+        What the UnderCover Agent is told, for running the queue and for working
+        a claim. Read only.
       </p>
       {instructions === null ? (
         <p className="muted">
@@ -24,7 +25,12 @@ export function InstructionsPage() {
             : "Loading the instructions."}
         </p>
       ) : (
-        <pre className="panel instructions">{instructions}</pre>
+        <>
+          <h2>Running the queue</h2>
+          <pre className="panel instructions">{instructions.queue}</pre>
+          <h2>Working a claim</h2>
+          <pre className="panel instructions">{instructions.claim}</pre>
+        </>
       )}
     </>
   );

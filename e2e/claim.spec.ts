@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { addStep, decide, pay, startClaim } from "./support";
+import {
+  addRead,
+  addStep,
+  decide,
+  failClaim,
+  pay,
+  startClaim,
+} from "./support";
 
 test("a claim in progress shows its steps as the agent works", async ({
   page,
@@ -80,4 +87,42 @@ test("a payout over the limit shows its payment blocked", async ({ page }) => {
     page.getByText("Payment blocked: waiting for a handler's sign-off."),
   ).toBeVisible();
   await expect(page.getByText("Paid $")).toHaveCount(0);
+});
+
+test("the claim page shows the sections the agent read", async ({ page }) => {
+  await addRead("CLM-1015", "claims_manual", "9");
+  await addRead("CLM-1015", "policy_wording", "3");
+  await page.goto("/#/claims/CLM-1015");
+
+  const reads = page.locator("section", { hasText: "What the agent read" });
+  await expect(
+    reads.getByText("Claims manual, section 9: Repeat claims"),
+  ).toBeVisible();
+  await expect(
+    reads.getByText("Policy wording, section 3: Trip Delay"),
+  ).toBeVisible();
+});
+
+test("a failed attempt shows as an error and a second leaves the claim for a handler", async ({
+  page,
+}) => {
+  await startClaim("CLM-1016");
+  await failClaim("CLM-1016", "A made-up timeout");
+  await page.goto("/#/claims/CLM-1016");
+  await expect(
+    page.getByText("Attempt 1 failed: A made-up timeout"),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /CLM-1016/ })).toContainText(
+    "Waiting",
+  );
+
+  await startClaim("CLM-1016");
+  await failClaim("CLM-1016", "A made-up timeout");
+  await expect(page.getByRole("heading", { name: /CLM-1016/ })).toContainText(
+    "Left for a handler",
+    { timeout: 10000 },
+  );
+  await expect(
+    page.getByText("Attempt 2 failed: A made-up timeout"),
+  ).toBeVisible();
 });

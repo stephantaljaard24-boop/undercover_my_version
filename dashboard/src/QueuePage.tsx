@@ -1,10 +1,12 @@
-import { fetchClaims } from "./api";
+import { fetchQueueView } from "./api";
+import type { Run } from "./api";
 import { formatCents } from "./money";
 import {
   formatDate,
   formatType,
   STATUS_LABELS,
   STATUSES,
+  TODO_LABELS,
   VERDICT_LABELS,
 } from "./labels";
 import { usePolling } from "./usePolling";
@@ -15,10 +17,42 @@ function keepPolling(): number {
   return QUEUE_POLL_MS;
 }
 
-export function QueuePage() {
-  const { data: claims, failed } = usePolling(fetchClaims, keepPolling);
+function RunPanel({ run }: Readonly<{ run: Run }>) {
+  return (
+    <section className="panel card run" aria-label="Current run">
+      <h2>Current run</h2>
+      <p className="muted small">
+        Up to {run.claim_limit} {run.claim_limit === 1 ? "claim" : "claims"}.{" "}
+        {run.finished ? "Finished." : "Running."}
+      </p>
+      {run.todos.length === 0 ? (
+        <p className="muted">No to-do list yet.</p>
+      ) : (
+        <ul className="todos">
+          {run.todos.map((todo) => (
+            <li key={todo.text}>
+              <span className={`pill todo-${todo.status}`}>
+                {TODO_LABELS[todo.status]}
+              </span>
+              {todo.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      {run.summary && (
+        <>
+          <h3>Summary</h3>
+          <p className="summary">{run.summary}</p>
+        </>
+      )}
+    </section>
+  );
+}
 
-  if (!claims) {
+export function QueuePage() {
+  const { data, failed } = usePolling(fetchQueueView, keepPolling);
+
+  if (!data) {
     return (
       <p className="muted">
         {failed ? "The queue could not be loaded." : "Loading the queue."}
@@ -26,9 +60,11 @@ export function QueuePage() {
     );
   }
 
+  const { claims, run } = data;
   return (
     <>
       <h1>Claims queue</h1>
+      {run && <RunPanel run={run} />}
       <section className="counts" aria-label="Claims by status">
         {STATUSES.map((status) => (
           <div key={status} className={`panel count status-${status}`}>

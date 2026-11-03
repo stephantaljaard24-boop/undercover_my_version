@@ -8,16 +8,15 @@ afterEach(() => {
   window.location.hash = "";
 });
 
+function respond(url: string): Response {
+  if (url.startsWith("/api/instructions/")) return new Response("Be careful.");
+  return Response.json(url === "/api/runs/current" ? null : []);
+}
+
 function stubBackend() {
   vi.stubGlobal(
     "fetch",
-    vi.fn((url: string) =>
-      Promise.resolve(
-        url === "/api/instructions"
-          ? new Response("Be careful.")
-          : Response.json([]),
-      ),
-    ),
+    vi.fn((url: string) => Promise.resolve(respond(url))),
   );
 }
 
@@ -35,7 +34,7 @@ it("follows the hash to the instructions and a claim", async () => {
   act(() => {
     window.location.hash = "#/instructions";
   });
-  expect(await screen.findByText("Be careful.")).toBeDefined();
+  expect(await screen.findAllByText("Be careful.")).toBeDefined();
   act(() => {
     window.location.hash = "#/claims/CLM-1001";
   });

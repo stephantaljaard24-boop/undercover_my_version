@@ -1,9 +1,10 @@
 import { toCents } from "./money";
 
 export type Status =
-  "waiting" | "in_progress" | "awaiting_sign_off" | "decided";
+  "waiting" | "in_progress" | "awaiting_sign_off" | "decided" | "needs_handler";
 export type Verdict = "approve" | "decline" | "refer";
-export type StepKind = "tool_call" | "tool_result" | "reply";
+export type StepKind = "tool_call" | "tool_result" | "reply" | "error";
+export type TodoStatus = "todo" | "in_progress" | "done" | "left_for_handler";
 
 /** Everything here shows amounts as whole cents. */
 export interface ClaimSummary {
@@ -92,11 +93,41 @@ export interface Step {
   text: string;
 }
 
+export interface SectionRead {
+  document: "policy_wording" | "claims_manual";
+  section: string;
+  title: string;
+}
+
+export interface Todo {
+  text: string;
+  status: TodoStatus;
+}
+
+export interface Run {
+  run_id: number;
+  claim_limit: number;
+  todos: Todo[];
+  summary: string | null;
+  finished: boolean;
+}
+
+export interface QueueView {
+  claims: ClaimSummary[];
+  run: Run | null;
+}
+
+export interface Instructions {
+  queue: string;
+  claim: string;
+}
+
 export interface ClaimView {
   claim: ClaimDetail;
   policy: Policy;
   customer: Customer;
   steps: Step[];
+  reads: SectionRead[];
 }
 
 /** The same shape as the API sends it, with each amount a dollar string. */
@@ -183,19 +214,34 @@ async function fetchCustomer(customerId: string): Promise<Customer> {
 /** Load a claim with its policy, its customer and the agent's steps. */
 export async function fetchClaimView(claimId: string): Promise<ClaimView> {
   const claim = await fetchClaim(claimId);
-  const [policy, customer, steps] = await Promise.all([
+  const [policy, customer, steps, reads] = await Promise.all([
     fetchPolicy(claim.policy_id),
     fetchCustomer(claim.customer_id),
     get<Omit<Step, "id">[]>(`/api/claims/${claimId}/steps`),
+    get<SectionRead[]>(`/api/claims/${claimId}/reads`),
   ]);
   return {
     claim,
     policy,
     customer,
     steps: steps.map((step, id) => ({ ...step, id })),
+    reads,
   };
 }
 
-export async function fetchInstructions(): Promise<string> {
-  return (await fetchOk("/api/instructions")).text();
+/** Load the queue with the latest run and its to-do list. */
+export async function fetchQueueView(): Promise<QueueView> {
+  const [claims, run] = await Promise.all([
+    fetchClaims(),
+    get<Run | null>("/api/runs/current"),
+  ]);
+  return { claims, run };
+}
+
+export async function fetchInstructions(): Promise<Instructions> {
+  const [queue, claim] = await Promise.all([
+    fetchOk("/api/instructions/queue").then((response) => response.text()),
+    fetchOk("/api/instructions/claim").then((response) => response.text()),
+  ]);
+  return { queue, claim };
 }

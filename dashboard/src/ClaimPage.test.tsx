@@ -66,10 +66,16 @@ const decision = {
   policy_section: "3. Trip Delay",
 };
 
-function backend(overrides: object, steps: object[] = [], earlier = true) {
+function backend(
+  overrides: object,
+  steps: object[] = [],
+  earlier = true,
+  reads: object[] = [],
+) {
   return vi.fn((url: string) => {
     let body: unknown = { ...claim, ...overrides };
     if (url.endsWith("/steps")) body = steps;
+    else if (url.endsWith("/reads")) body = reads;
     else if (url.startsWith("/api/policies/")) body = policy;
     else if (url.startsWith("/api/customers/"))
       body = earlier ? customer : { ...customer, previous_claims: [] };
@@ -113,6 +119,7 @@ it("shows a waiting claim in full", async () => {
   ).toBeDefined();
   expect(screen.getByText("No decision yet.")).toBeDefined();
   expect(screen.getByText("Nothing yet.")).toBeDefined();
+  expect(screen.getByText("Nothing read yet.")).toBeDefined();
 });
 
 it("shows the steps of a claim in progress and keeps watching it", async () => {
@@ -205,4 +212,34 @@ it("shows a declined claim with no payment", async () => {
 it("says so when the claim cannot be loaded", async () => {
   await show(vi.fn(() => Promise.resolve(new Response("", { status: 404 }))));
   expect(screen.getByText("The claim could not be loaded.")).toBeDefined();
+});
+
+it("shows the sections the agent read", async () => {
+  await show(
+    backend({}, [], true, [
+      { document: "claims_manual", section: "9", title: "Repeat claims" },
+      { document: "policy_wording", section: "3", title: "Trip Delay" },
+    ]),
+  );
+  expect(screen.getByText("What the agent read")).toBeDefined();
+  expect(
+    screen.getByText("Claims manual, section 9: Repeat claims"),
+  ).toBeDefined();
+  expect(
+    screen.getByText("Policy wording, section 3: Trip Delay"),
+  ).toBeDefined();
+});
+
+it("shows a failed attempt and stops watching a claim left for a handler", async () => {
+  const fetchMock = backend({ status: "needs_handler" }, [
+    { kind: "error", text: "Attempt 1 failed: timed out" },
+    { kind: "error", text: "Attempt 2 failed: timed out" },
+  ]);
+  await show(fetchMock);
+  expect(screen.getByText("Left for a handler")).toBeDefined();
+  expect(screen.getAllByText("Error")).toHaveLength(2);
+  expect(screen.getByText("Attempt 2 failed: timed out")).toBeDefined();
+  const calls = fetchMock.mock.calls.length;
+  await act(() => vi.advanceTimersByTimeAsync(10000));
+  expect(fetchMock.mock.calls).toHaveLength(calls);
 });
