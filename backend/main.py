@@ -172,36 +172,10 @@ def get_customer(customer_id: str, conn: Db) -> Customer:
     return Customer(**json.loads(row["data"]))
 
 
-@app.get(
-    "/api/policy-wording",
-    operation_id="get_policy_wording",
-    response_class=PlainTextResponse,
-)
-def get_policy_wording() -> str:
-    """Get the policy wording."""
-    return (DATA_DIR / "policy_wording.md").read_text(encoding="utf-8")
-
-
-@app.get(
-    "/api/instructions",
-    operation_id="get_instructions",
-    response_class=PlainTextResponse,
-)
-def get_instructions() -> str:
-    """Get the agent's instructions."""
-    return (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
-
-
 @app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
 def start_claim(claim_id: str, conn: Db) -> ClaimDetail:
     """Move a waiting claim to in progress."""
     return move(conn, claim_id, "waiting", "in_progress")
-
-
-@app.post("/api/claims/{claim_id}/release", operation_id="release_claim")
-def release_claim(claim_id: str, conn: Db) -> ClaimDetail:
-    """Put a claim that is in progress back to waiting."""
-    return move(conn, claim_id, "in_progress", "waiting")
 
 
 @app.get("/api/claims/{claim_id}/steps", operation_id="list_steps")

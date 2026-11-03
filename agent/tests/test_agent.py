@@ -1,10 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
-from pydantic import Field
 
 from agent import main, runner, tools
+from agent.tests.stubs import FlakyModel, call, script
 from backend.main import app
 
 APPROVE = {
@@ -15,52 +14,32 @@ APPROVE = {
 }
 
 
-class StubModel(GenericFakeChatModel):
-    """A chat model that gives scripted replies in place of a real model."""
-
-    seen: list = Field(default_factory=list)
-
-    def bind_tools(self, tools, **kwargs):
-        return self
-
-    def _generate(self, messages, *args, **kwargs):
-        self.seen.append(messages)
-        return super()._generate(messages, *args, **kwargs)
-
-
-class BrokenModel(StubModel):
-    def _generate(self, messages, *args, **kwargs):
-        raise RuntimeError("model is down")
-
-
-def call(name, call_id="1", **args):
-    return AIMessage(
-        content="", tool_calls=[{"name": name, "args": args, "id": call_id}]
-    )
-
-
-def script(*replies):
-    return StubModel(messages=iter(replies))
-
-
-@pytest.fixture(autouse=True)
-def backend_in_process(client, monkeypatch):
-    monkeypatch.setattr(tools, "backend", lambda: TestClient(app))
-    return client
-
-
 def test_tools_read_through_the_api():
     assert "My flight home from Rome" in tools.get_claim.invoke(
         {"claim_id": "CLM-1001"}
     )
     assert "premium" in tools.get_policy.invoke({"policy_id": "POL-2001"})
     assert "CLM-0412" in tools.get_customer.invoke({"customer_id": "CUS-3001"})
-    assert "Policy Wording" in tools.get_policy_wording.invoke({})
+    contents = tools.get_contents.invoke({"document": "claims_manual"})
+    assert "9. Repeat claims" in contents
+
+
+def test_reading_a_section_records_it(client):
+    text = tools.read_section.invoke(
+        {"claim_id": "CLM-1001", "document": "claims_manual", "section": "9"}
+    )
+    assert text.startswith("## 9. Repeat claims")
+    assert client.get("/api/claims/CLM-1001/reads").json() == [
+        {"document": "claims_manual", "section": "9", "title": "Repeat claims"}
+    ]
 
 
 def test_tools_pass_on_a_refusal():
-    reply = tools.get_claim.invoke({"claim_id": "CLM-0000"})
-    assert reply.startswith("Refused (404)")
+    assert tools.get_claim.invoke({"claim_id": "CLM-0000"}).startswith("Refused (404)")
+    missing = tools.read_section.invoke(
+        {"claim_id": "CLM-1001", "document": "claims_manual", "section": "99"}
+    )
+    assert missing.startswith("Refused (404)")
 
 
 def test_tools_raise_on_a_backend_error(monkeypatch):
@@ -140,57 +119,139 @@ def test_approved_but_not_paid(client):
     assert runner.work_claim("CLM-1001", llm) == "CLM-1001: approve $420.00, not paid"
 
 
+def test_the_helper_looks_up_sections(client):
+    llm = script(
+        call("get_contents", document="claims_manual"),
+        call(
+            "read_section", claim_id="CLM-1001", document="claims_manual", section="9"
+        ),
+        call(
+            "read_section", claim_id="CLM-1001", document="policy_wording", section="3"
+        ),
+        AIMessage(content="Done."),
+    )
+    runner.work_claim("CLM-1001", llm)
+    reads = client.get("/api/claims/CLM-1001/reads").json()
+    assert [(r["document"], r["section"]) for r in reads] == [
+        ("claims_manual", "9"),
+        ("policy_wording", "3"),
+    ]
+
+
+def test_a_failing_claim_goes_back_and_a_second_failure_leaves_it(client):
+    line = runner.work_claim("CLM-1001", script())
+    assert line == ("CLM-1001: failed (RuntimeError: model is down), back in the queue")
+    assert client.get("/api/claims/CLM-1001").json()["status"] == "waiting"
+    line = runner.work_claim("CLM-1001", script())
+    assert line == (
+        "CLM-1001: failed again (RuntimeError: model is down), left for a handler"
+    )
+    assert client.get("/api/claims/CLM-1001").json()["status"] == "needs_handler"
+    steps = client.get("/api/claims/CLM-1001/steps").json()
+    assert [s["kind"] for s in steps] == ["error", "error"]
+    assert runner.work_claim("CLM-1001", script()).startswith("CLM-1001: not started")
+
+
+def test_a_model_that_fails_once_is_retried(client):
+    llm = FlakyModel(
+        messages=iter(
+            [
+                call("record_decision", claim_id="CLM-1001", **APPROVE),
+                call("pay_claim", claim_id="CLM-1001", amount="420.00"),
+                AIMessage(content="Approved."),
+            ]
+        )
+    )
+    assert runner.work_claim("CLM-1001", llm) == "CLM-1001: approve $420.00, paid"
+
+
+def test_a_tool_that_fails_once_is_retried(client, monkeypatch):
+    real = TestClient(app)
+    calls = []
+
+    class FlakyOnce(TestClient):
+        def get(self, url, *args, **kwargs):
+            response = real.get(url, *args, **kwargs)
+            if url == "/api/claims/CLM-1001" and not calls:
+                calls.append(url)
+                response.status_code = 500
+            return response
+
+    monkeypatch.setattr(tools, "backend", lambda: FlakyOnce(app))
+    llm = script(
+        call("get_claim", claim_id="CLM-1001"),
+        call("record_decision", claim_id="CLM-1001", **APPROVE),
+        AIMessage(content="Approved."),
+    )
+    assert runner.work_claim("CLM-1001", llm) == "CLM-1001: approve $420.00, not paid"
+    steps = real.get("/api/claims/CLM-1001/steps").json()
+    assert "My flight home from Rome" in steps[1]["text"]
+
+
+def test_a_runaway_loop_is_cut_off(client, monkeypatch):
+    monkeypatch.setattr(main, "MODEL_CALL_LIMIT", 2)
+    llm = script(
+        *[call("get_claim", call_id=str(n), claim_id="CLM-1001") for n in range(5)]
+    )
+    line = runner.work_claim("CLM-1001", llm)
+    assert "ModelCallLimitExceededError" in line
+    assert client.get("/api/claims/CLM-1001").json()["status"] == "waiting"
+
+
 def test_claim_without_a_decision_goes_back_to_waiting(client):
     llm = script(AIMessage(content="I am not sure."))
-    assert (
-        runner.work_claim("CLM-1001", llm) == "CLM-1001: no decision, back in the queue"
+    assert runner.work_claim("CLM-1001", llm) == (
+        "CLM-1001: failed (the agent ended without a decision), back in the queue"
     )
     assert client.get("/api/claims/CLM-1001").json()["status"] == "waiting"
+    steps = client.get("/api/claims/CLM-1001/steps").json()
+    assert steps[-1] == {
+        "kind": "error",
+        "text": "Attempt 1 failed: the agent ended without a decision",
+    }
 
 
-def test_failure_releases_the_claim(client):
-    with pytest.raises(RuntimeError, match="model is down"):
-        runner.work_claim("CLM-1001", BrokenModel(messages=iter([])))
-    assert client.get("/api/claims/CLM-1001").json()["status"] == "waiting"
+def test_a_failure_after_the_approval_is_paid_once(client):
+    llm = script(call("record_decision", claim_id="CLM-1001", **APPROVE))
+    line = runner.work_claim("CLM-1001", llm)
+    assert line == (
+        "CLM-1001: approve $420.00, paid (the agent then failed: "
+        "RuntimeError: model is down)"
+    )
+    claim = client.get("/api/claims/CLM-1001").json()
+    assert claim["status"] == "decided"
+    assert claim["payment"] == {"amount": "420.00"}
 
 
-def test_queue_works_the_waiting_claims_only(client, capsys):
-    for number in range(1003, 1026):
-        client.post(f"/api/claims/CLM-{number}/start")
+def test_a_failure_after_an_approval_over_the_limit_leaves_the_payment(client):
+    big = {**APPROVE, "payout": "1500.00"}
+    llm = script(call("record_decision", claim_id="CLM-1003", **big))
+    line = runner.work_claim("CLM-1003", llm)
+    assert line.startswith("CLM-1003: approve $1500.00, payment waiting for sign-off")
+    claim = client.get("/api/claims/CLM-1003").json()
+    assert claim["status"] == "awaiting_sign_off"
+    assert claim["payment"] is None
+
+
+def test_a_failure_after_a_decline_keeps_the_decision(client):
     decline = {**APPROVE, "decision": "decline", "payout": "0.00"}
-    llm = script(
-        call("record_decision", claim_id="CLM-1001", **decline),
-        AIMessage(content="Declined."),
-        call("record_decision", claim_id="CLM-1002", **decline),
-        AIMessage(content="Declined."),
-    )
-    assert runner.work_queue(llm) == ["CLM-1001: decline", "CLM-1002: decline"]
-    assert capsys.readouterr().out == "CLM-1001: decline\nCLM-1002: decline\n"
-    assert client.get("/api/claims/CLM-1003").json()["status"] == "in_progress"
+    llm = script(call("record_decision", claim_id="CLM-1001", **decline))
+    assert runner.work_claim("CLM-1001", llm).startswith("CLM-1001: decline (the agent")
+    assert client.get("/api/claims/CLM-1001").json()["status"] == "decided"
 
 
-def test_main_runs_one_claim_or_the_queue(client, capsys, monkeypatch):
-    monkeypatch.setattr(main, "model", lambda: script(AIMessage(content="Unsure.")))
-    runner.main(["CLM-1001"])
-    assert capsys.readouterr().out == "CLM-1001: no decision, back in the queue\n"
-    for number in range(1001, 1026):
-        client.post(f"/api/claims/CLM-{number}/start")
-    runner.main([])
-    assert capsys.readouterr().out == ""
-
-
-def test_system_prompt_is_the_backends_instructions(client):
+def test_system_prompt_is_the_claim_instructions(client):
     llm = script(AIMessage(content="Done."))
     main.run("CLM-1001", "thread-1", llm)
     first = llm.seen[0][0]
     assert first.type == "system"
-    assert first.content == client.get("/api/instructions").text
+    assert first.content == client.get("/api/instructions/claim").text
     assert llm.seen[0][1].content == "Decide claim CLM-1001."
 
 
 def test_model_name(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.delenv("MODEL_NAME", raising=False)
-    assert main.model().model_name == "openai/gpt-6-luna"
+    assert main.model().model_name == "deepseek/deepseek-v4.1-flash"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     assert main.model().model_name == "openrouter/free"

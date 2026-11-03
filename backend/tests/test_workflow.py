@@ -24,16 +24,13 @@ def status(client, claim_id="CLM-1001"):
     return client.get(f"/api/claims/{claim_id}").json()["status"]
 
 
-def test_start_and_release(client):
+def test_start(client):
     assert start(client).json()["status"] == "in_progress"
     assert start(client).status_code == 409
-    assert client.post("/api/claims/CLM-1001/release").json()["status"] == "waiting"
-    assert client.post("/api/claims/CLM-1001/release").status_code == 409
 
 
 def test_unknown_claim_is_404(client):
-    for path in ("start", "release"):
-        assert client.post(f"/api/claims/CLM-0000/{path}").status_code == 404
+    assert client.post("/api/claims/CLM-0000/start").status_code == 404
     assert client.get("/api/claims/CLM-0000/steps").status_code == 404
     step = {"kind": "reply", "text": "Done"}
     assert client.post("/api/claims/CLM-0000/steps", json=step).status_code == 404

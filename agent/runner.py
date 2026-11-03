@@ -1,4 +1,4 @@
-"""Works through the claims queue, one claim at a time."""
+"""Works one claim with a fresh helper, and puts right what goes wrong."""
 
 from uuid import uuid4
 
@@ -8,50 +8,50 @@ from agent import tools
 from agent.main import run
 
 
-def describe(claim: dict) -> str:
+def describe(claim: dict, problem: str | None) -> str:
     """Say in one line how a claim ended up."""
+    if claim["status"] == "needs_handler":
+        return f"failed again ({problem}), left for a handler"
+    if claim["status"] == "waiting":
+        return f"failed ({problem}), back in the queue"
     decision = claim["decision"]
-    if decision is None:
-        return "no decision, back in the queue"
-    if decision["decision"] != "approve":
-        return decision["decision"]
-    line = f"approve ${decision['payout']}"
-    if claim["status"] == "awaiting_sign_off":
-        return f"{line}, payment waiting for sign-off"
-    return f"{line}, paid" if claim["payment"] else f"{line}, not paid"
+    line = decision["decision"]
+    if line == "approve":
+        line += f" ${decision['payout']}"
+        if claim["status"] == "awaiting_sign_off":
+            line += ", payment waiting for sign-off"
+        else:
+            line += ", paid" if claim["payment"] else ", not paid"
+    return f"{line} (the agent then failed: {problem})" if problem else line
 
 
 def work_claim(claim_id: str, llm: BaseChatModel | None = None) -> str:
-    """Start a claim, run the agent on it, and return a line saying what happened."""
+    """Start a claim, run the agent on it, and return a line saying what happened.
+
+    A claim that fails before it has a decision goes back in the queue, and one that
+    fails after being approved but before being paid is paid here.
+    """
     with tools.backend() as client:
-        client.post(f"/api/claims/{claim_id}/start").raise_for_status()
-    try:
-        run(claim_id, f"{claim_id}-{uuid4().hex[:8]}", llm)
-    finally:
-        with tools.backend() as client:
-            claim = client.get(f"/api/claims/{claim_id}").json()
-            if claim["status"] == "in_progress":
-                client.post(f"/api/claims/{claim_id}/release")
-    with tools.backend() as client:
+        started = client.post(f"/api/claims/{claim_id}/start")
+        if started.is_error:
+            return f"{claim_id}: not started ({started.json()['detail']})"
+        problem = None
+        try:
+            run(claim_id, f"{claim_id}-{uuid4().hex[:8]}", llm)
+        except Exception as error:
+            problem = f"{type(error).__name__}: {error}"
         claim = client.get(f"/api/claims/{claim_id}").json()
-    return f"{claim_id}: {describe(claim)}"
-
-
-def work_queue(llm: BaseChatModel | None = None) -> list[str]:
-    """Work every claim that is waiting, one at a time, printing a line for each."""
-    with tools.backend() as client:
-        claims = client.get("/api/claims").json()
-    lines = []
-    for claim in claims:
-        if claim["status"] == "waiting":
-            lines.append(work_claim(claim["claim_id"], llm))
-            print(lines[-1])
-    return lines
-
-
-def main(argv: list[str]) -> None:
-    """Work the claim named on the command line, or else the whole queue."""
-    if argv:
-        print(work_claim(argv[0]))
-    else:
-        work_queue()
+        if claim["status"] == "in_progress":
+            problem = problem or "the agent ended without a decision"
+            claim = client.post(
+                f"/api/claims/{claim_id}/fail", json={"reason": problem}
+            ).json()
+        elif problem and claim["status"] == "decided" and claim["payment"] is None:
+            decision = claim["decision"]
+            if decision["decision"] == "approve":
+                client.post(
+                    f"/api/claims/{claim_id}/payment",
+                    json={"amount": decision["payout"]},
+                )
+                claim = client.get(f"/api/claims/{claim_id}").json()
+    return f"{claim_id}: {describe(claim, problem)}"

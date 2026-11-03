@@ -1,9 +1,11 @@
 """The agent's tools. Each one calls a single backend operation."""
 
+import os
+
 import httpx
 from langchain_core.tools import tool
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 def backend() -> httpx.Client:
@@ -43,9 +45,20 @@ def get_customer(customer_id: str) -> str:
 
 
 @tool
-def get_policy_wording() -> str:
-    """Get the policy wording, which every decision follows."""
-    return fetch("/api/policy-wording")
+def get_contents(document: str) -> str:
+    """List the numbered sections of a document: policy_wording or claims_manual."""
+    return fetch(f"/api/documents/{document}/contents")
+
+
+@tool
+def read_section(claim_id: str, document: str, section: str) -> str:
+    """Read a section of policy_wording or claims_manual by its number, such as "9"."""
+    with backend() as client:
+        response = client.post(
+            f"/api/claims/{claim_id}/reads",
+            json={"document": document, "section": section},
+        )
+    return reply_of(response)
 
 
 @tool
@@ -88,7 +101,8 @@ TOOLS = [
     get_claim,
     get_policy,
     get_customer,
-    get_policy_wording,
+    get_contents,
+    read_section,
     record_decision,
     pay_claim,
 ]

@@ -1,0 +1,79 @@
+"""Stand-ins for a chat model, so no test calls a real one."""
+
+import time
+from collections.abc import Iterator
+from uuid import uuid4
+
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import Field
+
+
+class StubModel(GenericFakeChatModel):
+    """A chat model that gives scripted replies, then fails as a downed model would."""
+
+    seen: list = Field(default_factory=list)
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, *args, **kwargs):
+        self.seen.append(messages)
+        try:
+            return super()._generate(messages, *args, **kwargs)
+        except StopIteration:
+            raise RuntimeError("model is down") from None
+
+
+class FlakyModel(StubModel):
+    """A chat model whose first call fails."""
+
+    failed: bool = False
+
+    def _generate(self, messages, *args, **kwargs):
+        if not self.failed:
+            self.failed = True
+            raise TimeoutError("the provider timed out")
+        return super()._generate(messages, *args, **kwargs)
+
+
+class ByClaimModel(StubModel):
+    """A chat model for helpers: each claim has its own script of replies.
+
+    An entry that is an exception is raised, and a claim with no replies left fails.
+    It also records how many calls ran at the same time.
+    """
+
+    messages: Iterator = Field(default_factory=lambda: iter(()))
+    scripts: dict[str, list] = Field(default_factory=dict)
+    active: int = 0
+    most_active: int = 0
+
+    def _generate(self, messages, *args, **kwargs):
+        claim_id = next(m.content for m in messages if m.type == "human")[:-1].split()[
+            -1
+        ]
+        self.active += 1
+        self.most_active = max(self.most_active, self.active)
+        time.sleep(0.02)
+        self.active -= 1
+        self.seen.append(messages)
+        script_ = self.scripts.get(claim_id)
+        if not script_:
+            raise RuntimeError("model is down")
+        reply = script_.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return ChatResult(generations=[ChatGeneration(message=reply)])
+
+
+def call(name, call_id=None, **args):
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id or uuid4().hex}],
+    )
+
+
+def script(*replies):
+    return StubModel(messages=iter(replies))

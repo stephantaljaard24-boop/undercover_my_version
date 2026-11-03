@@ -57,10 +57,9 @@ def test_unknown_records_are_404(client):
 
 
 def test_texts(client):
-    wording = client.get("/api/policy-wording")
-    assert wording.headers["content-type"].startswith("text/plain")
-    assert "Policy Wording" in wording.text
-    assert client.get("/api/instructions").status_code == 200
+    assert client.get("/api/instructions").status_code == 404
+    assert client.get("/api/policy-wording").status_code == 404
+    assert client.post("/api/claims/CLM-1001/release").status_code == 404
 
 
 def test_seed_resets_the_database(client):
