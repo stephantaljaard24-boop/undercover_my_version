@@ -68,16 +68,16 @@ The pilot's code organizes the agent's work: it feeds the agent one claim at a t
 
 **Success criteria**
 
-- [ ] `uv run pytest -q backend` passes, with tests that:
-  - [ ] a first `fail_claim` puts the claim back to `waiting` and adds an `error` step with the reason;
-  - [ ] a second puts it in `needs_handler`, and a third gives 409;
-  - [ ] `fail_claim` on a waiting, decided or awaiting-sign-off claim gives 409;
-  - [ ] a second `record_decision` on a decided claim gives 409 and leaves the first decision as it was; a second payment still gives 409;
-  - [ ] the run operations: a new run is empty and unfinished, `set_todos` replaces the whole list, a status outside the four gives 422, `finish_run` stores the summary, `get_current_run` returns the latest run and null before any, and a reset clears runs and attempts;
-  - [ ] the two instruction operations return the contents of their files.
-- [ ] By hand against `npm run dev:backend`: starting CLM-1001 and failing it twice with `Invoke-RestMethod` ends in `needs_handler`, with two `error` steps. `uv run -m backend.seed` puts it back.
-- [ ] `openapi.json` shows an `operationId` and a summary for each new operation and no optional inputs.
-- [ ] `docs/STATUS.md` is updated. `npm run check:python` passes.
+- [x] `uv run pytest -q backend` passes, with tests that:
+  - [x] a first `fail_claim` puts the claim back to `waiting` and adds an `error` step with the reason;
+  - [x] a second puts it in `needs_handler`, and a third gives 409;
+  - [x] `fail_claim` on a waiting, decided or awaiting-sign-off claim gives 409;
+  - [x] a second `record_decision` on a decided claim gives 409 and leaves the first decision as it was; a second payment still gives 409;
+  - [x] the run operations: a new run is empty and unfinished, `set_todos` replaces the whole list, a status outside the four gives 422, `finish_run` stores the summary, `get_current_run` returns the latest run and null before any, and a reset clears runs and attempts;
+  - [x] the two instruction operations return the contents of their files.
+- [x] By hand against `npm run dev:backend`: starting CLM-1001 and failing it twice with `Invoke-RestMethod` ends in `needs_handler`, with two `error` steps. `uv run -m backend.seed` puts it back.
+- [x] `openapi.json` shows an `operationId` and a summary for each new operation and no optional inputs.
+- [x] `docs/STATUS.md` is updated. `npm run check:python` passes.
 
 ## Phase 3: the claim helper
 

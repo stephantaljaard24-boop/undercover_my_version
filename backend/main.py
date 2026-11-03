@@ -16,19 +16,25 @@ from backend.documents import sections
 from backend.models import (
     Claim,
     ClaimDetail,
+    ClaimLimit,
     ClaimSummary,
     Customer,
     Decision,
+    Failure,
     Payment,
     Policy,
+    Run,
     SectionRead,
     SectionRef,
     Status,
     Step,
+    Summary,
+    TodoList,
 )
 from backend.seed import seed
 
-INSTRUCTIONS = Path(__file__).parent / "instructions.md"
+INSTRUCTIONS = Path(__file__).parent / "instructions"
+MAX_ATTEMPTS = 2
 
 
 @asynccontextmanager
@@ -183,7 +189,7 @@ def get_policy_wording() -> str:
 )
 def get_instructions() -> str:
     """Get the agent's instructions."""
-    return INSTRUCTIONS.read_text(encoding="utf-8")
+    return (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
 
 
 @app.post("/api/claims/{claim_id}/start", operation_id="start_claim")
@@ -317,3 +323,100 @@ def list_reads(claim_id: str, conn: Db) -> list[SectionRead]:
         )
         for row in rows
     ]
+
+
+@app.get(
+    "/api/instructions/queue",
+    operation_id="get_queue_instructions",
+    response_class=PlainTextResponse,
+)
+def get_queue_instructions() -> str:
+    """Get the instructions for running the queue."""
+    return (INSTRUCTIONS / "queue.md").read_text(encoding="utf-8")
+
+
+@app.get(
+    "/api/instructions/claim",
+    operation_id="get_claim_instructions",
+    response_class=PlainTextResponse,
+)
+def get_claim_instructions() -> str:
+    """Get the instructions for working one claim."""
+    return (INSTRUCTIONS / "claim.md").read_text(encoding="utf-8")
+
+
+@app.post("/api/claims/{claim_id}/fail", operation_id="fail_claim")
+def fail_claim(claim_id: str, failure: Failure, conn: Db) -> ClaimDetail:
+    """Record a failed attempt on a claim in progress and send it back to waiting."""
+    row = find(conn, "SELECT status, attempts FROM claims WHERE claim_id = ?", claim_id)
+    if row["status"] != "in_progress":
+        raise HTTPException(
+            409, f"Claim {claim_id} is {row['status']}, not in_progress"
+        )
+    attempts = row["attempts"] + 1
+    after = "needs_handler" if attempts >= MAX_ATTEMPTS else "waiting"
+    with conn:
+        conn.execute(
+            "UPDATE claims SET status = ?, attempts = ? WHERE claim_id = ?",
+            (after, attempts, claim_id),
+        )
+        conn.execute(
+            "INSERT INTO steps (claim_id, kind, text) VALUES (?, 'error', ?)",
+            (claim_id, f"Attempt {attempts} failed: {failure.reason}"),
+        )
+    return claim_detail(conn, claim_id)
+
+
+def run_of(row: sqlite3.Row) -> Run:
+    return Run(
+        run_id=row["run_id"],
+        claim_limit=row["claim_limit"],
+        todos=json.loads(row["todos"]),
+        summary=row["summary"],
+        finished=bool(row["finished"]),
+    )
+
+
+@app.post("/api/runs", operation_id="start_run")
+def start_run(limit: ClaimLimit, conn: Db) -> Run:
+    """Start a run of the agent on the queue, with a cap on the claims it may start."""
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO runs (claim_limit, todos) VALUES (?, '[]')",
+            (limit.claim_limit,),
+        )
+    row = conn.execute(
+        "SELECT * FROM runs WHERE run_id = ?", (cursor.lastrowid,)
+    ).fetchone()
+    return run_of(row)
+
+
+@app.get("/api/runs/current", operation_id="get_current_run")
+def get_current_run(conn: Db) -> Run | None:
+    """Get the latest run, or nothing if there has been none."""
+    row = conn.execute("SELECT * FROM runs ORDER BY run_id DESC LIMIT 1").fetchone()
+    return run_of(row) if row else None
+
+
+@app.put("/api/runs/{run_id}/todos", operation_id="set_todos")
+def set_todos(run_id: int, todo_list: TodoList, conn: Db) -> Run:
+    """Replace the run's to-do list."""
+    find(conn, "SELECT run_id FROM runs WHERE run_id = ?", str(run_id))
+    with conn:
+        conn.execute(
+            "UPDATE runs SET todos = ? WHERE run_id = ?",
+            (json.dumps([todo.model_dump() for todo in todo_list.todos]), run_id),
+        )
+    return run_of(find(conn, "SELECT * FROM runs WHERE run_id = ?", str(run_id)))
+
+
+@app.post("/api/runs/{run_id}/finish", operation_id="finish_run")
+def finish_run(run_id: int, summary: Summary, conn: Db) -> Run:
+    """Finish the run with a summary for the handlers."""
+    find(conn, "SELECT run_id FROM runs WHERE run_id = ?", str(run_id))
+    with conn:
+        conn.execute(
+            "UPDATE runs SET summary = ?, finished = 1 WHERE run_id = ?",
+            (summary.summary, run_id),
+        )
+    return run_of(find(conn, "SELECT * FROM runs WHERE run_id = ?", str(run_id)))

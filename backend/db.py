@@ -15,10 +15,12 @@ DROP TABLE IF EXISTS decisions;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS steps;
 DROP TABLE IF EXISTS reads;
+DROP TABLE IF EXISTS runs;
 CREATE TABLE claims (
     claim_id TEXT PRIMARY KEY,
     status TEXT NOT NULL,
-    data TEXT NOT NULL
+    data TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE policies (policy_id TEXT PRIMARY KEY, data TEXT NOT NULL);
 CREATE TABLE customers (customer_id TEXT PRIMARY KEY, data TEXT NOT NULL);
@@ -42,6 +44,13 @@ CREATE TABLE reads (
     document TEXT NOT NULL,
     section TEXT NOT NULL,
     UNIQUE (claim_id, document, section)
+);
+CREATE TABLE runs (
+    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_limit INTEGER NOT NULL,
+    todos TEXT NOT NULL,
+    summary TEXT,
+    finished INTEGER NOT NULL DEFAULT 0
 );
 """
 

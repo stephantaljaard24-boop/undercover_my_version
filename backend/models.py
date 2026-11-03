@@ -13,9 +13,12 @@ Money = Annotated[
     PlainSerializer(lambda d: str(d.quantize(CENT)), return_type=str),
 ]
 
-Status = Literal["waiting", "in_progress", "awaiting_sign_off", "decided"]
+Status = Literal[
+    "waiting", "in_progress", "awaiting_sign_off", "decided", "needs_handler"
+]
 Verdict = Literal["approve", "decline", "refer"]
-StepKind = Literal["tool_call", "tool_result", "reply"]
+StepKind = Literal["tool_call", "tool_result", "reply", "error"]
+TodoStatus = Literal["todo", "in_progress", "done", "left_for_handler"]
 
 
 class Item(BaseModel):
@@ -131,3 +134,32 @@ class SectionRef(BaseModel):
 
 class SectionRead(SectionRef):
     title: str
+
+
+class Failure(BaseModel):
+    reason: Annotated[str, Field(min_length=1)]
+
+
+class Todo(BaseModel):
+    text: Annotated[str, Field(min_length=1)]
+    status: TodoStatus
+
+
+class TodoList(BaseModel):
+    todos: list[Todo]
+
+
+class ClaimLimit(BaseModel):
+    claim_limit: Annotated[int, Field(ge=1)]
+
+
+class Summary(BaseModel):
+    summary: Annotated[str, Field(min_length=1)]
+
+
+class Run(BaseModel):
+    run_id: int
+    claim_limit: int
+    todos: list[Todo]
+    summary: str | None
+    finished: bool

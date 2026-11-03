@@ -22,7 +22,7 @@ def seed() -> None:
     with conn:
         conn.executescript(SCHEMA)
         conn.executemany(
-            "INSERT INTO claims VALUES (?, 'waiting', ?)",
+            "INSERT INTO claims (claim_id, status, data) VALUES (?, 'waiting', ?)",
             [(c["claim_id"], json.dumps(c, default=str)) for c in claims],
         )
         conn.executemany(
