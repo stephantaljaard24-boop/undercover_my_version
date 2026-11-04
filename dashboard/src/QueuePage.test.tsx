@@ -156,6 +156,20 @@ it("shows the current run with its to-do list", async () => {
   expect(panel.queryByText("Summary")).toBeNull();
 });
 
+it("shows to-do items that have the same text", async () => {
+  await show(
+    backend(claims, {
+      ...run,
+      todos: [
+        { text: "CLM-1001", status: "left_for_handler" },
+        { text: "CLM-1001", status: "todo" },
+      ],
+    }),
+  );
+  const panel = within(screen.getByRole("region", { name: "Current run" }));
+  expect(panel.getAllByText("CLM-1001", { exact: false })).toHaveLength(2);
+});
+
 it("shows the summary when the run has finished", async () => {
   await show(
     backend(claims, {

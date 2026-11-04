@@ -1,7 +1,14 @@
 import { toCents } from "./money";
 
-export type Status =
-  "waiting" | "in_progress" | "awaiting_sign_off" | "decided" | "needs_handler";
+/** Every status a claim can have, in the order the queue shows them. */
+export const STATUSES = [
+  "waiting",
+  "in_progress",
+  "awaiting_sign_off",
+  "decided",
+  "needs_handler",
+] as const;
+export type Status = (typeof STATUSES)[number];
 export type Verdict = "approve" | "decline" | "refer";
 export type StepKind = "tool_call" | "tool_result" | "reply" | "error";
 export type TodoStatus = "todo" | "in_progress" | "done" | "left_for_handler";

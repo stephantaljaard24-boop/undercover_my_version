@@ -1,13 +1,5 @@
 import type { SectionRead, Status, TodoStatus, Verdict } from "./api";
 
-export const STATUSES: Status[] = [
-  "waiting",
-  "in_progress",
-  "awaiting_sign_off",
-  "decided",
-  "needs_handler",
-];
-
 export const STATUS_LABELS: Record<Status, string> = {
   waiting: "Waiting",
   in_progress: "In progress",

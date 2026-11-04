@@ -1,11 +1,10 @@
-import { fetchQueueView } from "./api";
+import { fetchQueueView, STATUSES } from "./api";
 import type { Run } from "./api";
 import { formatCents } from "./money";
 import {
   formatDate,
   formatType,
   STATUS_LABELS,
-  STATUSES,
   TODO_LABELS,
   VERDICT_LABELS,
 } from "./labels";
@@ -29,8 +28,8 @@ function RunPanel({ run }: Readonly<{ run: Run }>) {
         <p className="muted">No to-do list yet.</p>
       ) : (
         <ul className="todos">
-          {run.todos.map((todo) => (
-            <li key={todo.text}>
+          {run.todos.map((todo, index) => (
+            <li key={`${String(index)}-${todo.text}`}>
               <span className={`pill todo-${todo.status}`}>
                 {TODO_LABELS[todo.status]}
               </span>
