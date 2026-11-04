@@ -2,7 +2,7 @@
 
 import re
 
-from backend.db import DATA_DIR
+from backend.data import DATA_DIR
 
 DOCUMENTS = {
     "policy_wording": "policy_wording.md",

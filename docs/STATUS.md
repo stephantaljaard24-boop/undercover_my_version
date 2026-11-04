@@ -12,6 +12,7 @@ The claims pilot from `docs/SPEC.md` is built (`docs/PLAN.md`), and so is the ag
 ## What's built
 
 - `backend/`: FastAPI and SQLite. Amounts go over the API as dollar strings, such as `"420.00"`.
+  - Inside: `main.py` holds the routes, `store.py` all the SQL, `rules.py` the status, attempts and sign-off rules, `data.py` the files in `data/`, `db.py` the connection and schema. `backend/tests/openapi.json` is the saved API; a test fails when the live API differs, so a build that changes the API saves the new one on purpose.
   - `GET /api/claims` and `GET /api/claims/{claim_id}`: the queue and one claim in full
   - `GET /api/policies/{policy_id}` and `GET /api/customers/{customer_id}`: the policy, and the customer's name and earlier claims (no contact details)
   - `POST /api/claims/{claim_id}/start`: waiting to in progress

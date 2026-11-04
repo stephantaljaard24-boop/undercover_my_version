@@ -1,16 +1,9 @@
 """Load the database from data/. Run `uv run -m backend.seed` to reset it."""
 
 import json
-from decimal import Decimal
-from typing import Any
 
-from backend.db import DATA_DIR, SCHEMA, connect, db_path
-
-
-def load_json(name: str) -> Any:
-    """Read a data file, keeping amounts as Decimal."""
-    text = (DATA_DIR / name).read_text(encoding="utf-8")
-    return json.loads(text, parse_float=Decimal)
+from backend.data import load_json
+from backend.db import SCHEMA, connect, db_path
 
 
 def seed() -> None:
@@ -26,11 +19,11 @@ def seed() -> None:
             [(c["claim_id"], json.dumps(c, default=str)) for c in claims],
         )
         conn.executemany(
-            "INSERT INTO policies VALUES (?, ?)",
+            "INSERT INTO policies (policy_id, data) VALUES (?, ?)",
             [(p["policy_id"], json.dumps(p, default=str)) for p in policies],
         )
         conn.executemany(
-            "INSERT INTO customers VALUES (?, ?)",
+            "INSERT INTO customers (customer_id, data) VALUES (?, ?)",
             [(c["customer_id"], json.dumps(c, default=str)) for c in customers],
         )
     conn.close()
