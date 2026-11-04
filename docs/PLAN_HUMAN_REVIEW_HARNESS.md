@@ -210,12 +210,12 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `backend/main.py` is under 50 lines, and no file in `backend/` (tests aside) is over 300 lines. A test checks the second.
-- [ ] `test_layout.py` also fails if a backend source file other than a test imports `backend.main`, or if `store`, `rules` or `data` imports anything from `routes`.
-- [ ] The OpenAPI test passes (same routes, same `operation_id`s, same bodies).
-- [ ] `uv run pytest -q backend` passes with only imports and set-up changed in the existing tests.
-- [ ] `npm run dev:backend` starts and `Invoke-RestMethod http://127.0.0.1:8000/api/claims` returns the 25 claims.
-- [ ] `npm run check:python` and `npm run e2e` pass. `docs/STATUS.md` is updated.
+- [x] `backend/main.py` is under 50 lines, and no file in `backend/` (tests aside) is over 300 lines. A test checks the second.
+- [x] `test_layout.py` also fails if a backend source file other than a test imports `backend.main`, or if `store`, `rules` or `data` imports anything from `routes`.
+- [x] The OpenAPI test passes (same routes, same `operation_id`s, same bodies).
+- [x] `uv run pytest -q backend` passes with only imports and set-up changed in the existing tests.
+- [x] `npm run dev:backend` starts and `Invoke-RestMethod http://127.0.0.1:8000/api/claims` returns the 25 claims.
+- [x] `npm run check:python` and `npm run e2e` pass. `docs/STATUS.md` is updated.
 
 ### Phase 3: the harness
 
@@ -228,12 +228,14 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes. The new tests cover: an agent built by `build_agent` that retries a model that fails once, with the delay set to zero; the call limit raising; `steps_of` for a tool call, a tool result (cut at 400 characters), a reply and anything else; `run_agent` reporting steps in order and returning the last reply; `todo_tool` saving what it is given; and `Run.admit` refusing past the cap, `unfinished` naming retries and in-cap claims only.
-- [ ] `Grep -i "claim|policy|payout|decision|backend|/api/" agent/harness` finds nothing except the `left_for_handler` state in `todos.py` (assumption 2).
-- [ ] `uv run -m agent --help` still works.
-- [ ] `npm run check:python` passes. `docs/STATUS.md` is updated.
+- [x] `uv run pytest -q agent` passes. The new tests cover: an agent built by `build_agent` that retries a model that fails once, with the delay set to zero; the call limit raising; `steps_of` for a tool call, a tool result (cut at 400 characters), a reply and anything else; `run_agent` reporting steps in order and returning the last reply; `todo_tool` saving what it is given; and `Run.admit` refusing past the cap, `unfinished` naming retries and in-cap claims only.
+- [x] `Grep -i "claim|policy|payout|decision|backend|/api/" agent/harness` finds nothing except the `left_for_handler` state in `todos.py` (assumption 2).
+- [x] `uv run -m agent --help` still works.
+- [x] `npm run check:python` passes. `docs/STATUS.md` is updated.
 
 ### Phase 4: one way to call the backend
+
+*Built together with Phase 5, in the final layout, to avoid writing every test twice. The tests were green at the end of both.*
 
 **What it builds.** `agent/undercover/backend.py`: a `Backend` class that owns the client, every path and the handling of a refusal, with typed answers; the tools, the runner and the queue agent switch to it.
 
@@ -245,11 +247,11 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes, with the existing tests keeping their assertions and the refusal texts unchanged (`Refused (404)` still starts the text a tool returns).
-- [ ] `Grep "/api/|https?://|localhost|httpx" agent` shows hits only in `agent/undercover/backend.py` and the OpenRouter address in `agent/harness/model.py`.
-- [ ] `Grep "client\.(get|post|put)|\.json\(\)|is_error|is_success|status_code" agent` shows hits only in `agent/undercover/backend.py`.
-- [ ] `Grep -c "httpx.Client" agent` gives one.
-- [ ] `npm run check:python` passes. `docs/STATUS.md` is updated.
+- [x] `uv run pytest -q agent` passes, with the existing tests keeping their assertions and the refusal texts unchanged (`Refused (404)` still starts the text a tool returns).
+- [x] `Grep "/api/|https?://|localhost|httpx" agent` shows hits only in `agent/undercover/backend.py` and the OpenRouter address in `agent/harness/model.py`.
+- [x] `Grep "client\.(get|post|put)|\.json\(\)|is_error|is_success|status_code" agent` shows hits only in `agent/undercover/backend.py`.
+- [x] `Grep -c "httpx.Client" agent` gives one.
+- [x] `npm run check:python` passes. `docs/STATUS.md` is updated.
 
 ### Phase 5: the agent's layout, with the checks that keep it
 
@@ -257,13 +259,13 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes with every existing test still there under its new file.
-- [ ] `agent/tests/test_layout.py` passes, and fails when it should. It checks, by reading each file's imports: `agent/harness` imports nothing from `agent.undercover`, `agent.__main__` or `backend`; nothing in `agent/undercover` imports `agent.__main__` or `backend`; nothing imports `agent.__main__` except tests. It also checks that no `agent/` file other than tests is named `main`, `utils`, `helpers` or `runner`, that no source file is over 300 lines, and that `/api/` appears only in `undercover/backend.py`.
-- [ ] I prove the test works: add `from agent.undercover import backend` to a harness file, see the test fail, remove it.
-- [ ] The search for the review's count: `Grep "/api/|localhost|https?://" agent --glob "!tests/**"` shows the paths only in `undercover/backend.py`, with each path once, and the OpenRouter address once in `harness/model.py`.
-- [ ] `Glob agent/**/*.py` shows no `main.py`, `runner.py` or `queue_run.py`.
-- [ ] `uv run -m agent --help` works. `npm run check:python` passes.
-- [ ] `docs/TECH_STACK.md` and `docs/STATUS.md` describe the layout and name the harness and the UnderCover side.
+- [x] `uv run pytest -q agent` passes with every existing test still there under its new file.
+- [x] `agent/tests/test_layout.py` passes, and fails when it should. It checks, by reading each file's imports: `agent/harness` imports nothing from `agent.undercover`, `agent.__main__` or `backend`; nothing in `agent/undercover` imports `agent.__main__` or `backend`; nothing imports `agent.__main__` except tests. It also checks that no `agent/` file other than tests is named `main`, `utils`, `helpers` or `runner`, that no source file is over 300 lines, and that `/api/` appears only in `undercover/backend.py`.
+- [x] I prove the test works: add `from agent.undercover import backend` to a harness file, see the test fail, remove it.
+- [x] The search for the review's count: `Grep "/api/|localhost|https?://" agent --glob "!tests/**"` shows the paths only in `undercover/backend.py`, with each path once, and the OpenRouter address once in `harness/model.py`.
+- [x] `Glob agent/**/*.py` shows no `main.py`, `runner.py` or `queue_run.py`.
+- [x] `uv run -m agent --help` works. `npm run check:python` passes.
+- [x] `docs/TECH_STACK.md` and `docs/STATUS.md` describe the layout and name the harness and the UnderCover side.
 
 ### Phase 6: the instructions as goals
 
@@ -277,11 +279,11 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] The test passes. Before and after word counts, from `wc -w`: claim 908 to under 400 (target about 300), queue 466 to under 250 (target about 180). I report both.
-- [ ] I read both files against the rules in this plan and list any rule that is in the instructions and also in the wording or the manual.
-- [ ] `uv run pytest -q` passes, including the agent tests that check a system prompt equals the instructions.
-- [ ] The instructions page in the browser shows both texts (checked in Phase 8).
-- [ ] `npm run check:python` passes.
+- [x] The test passes. Before and after word counts, from `wc -w`: claim 908 to under 400 (target about 300), queue 466 to under 250 (target about 180). I report both.
+- [x] I read both files against the rules in this plan and list any rule that is in the instructions and also in the wording or the manual.
+- [x] `uv run pytest -q` passes, including the agent tests that check a system prompt equals the instructions.
+- [x] The instructions page in the browser shows both texts (checked in Phase 8).
+- [x] `npm run check:python` passes.
 
 ### Phase 7: the dashboard
 
@@ -293,9 +295,9 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `npm run check:ts` passes with the vitest coverage threshold unchanged (80%), including a test for the repeated item text.
-- [ ] `Grep "waiting.*in_progress.*awaiting_sign_off" dashboard/src` shows the list once, outside the tests.
-- [ ] `npm run e2e` passes.
+- [x] `npm run check:ts` passes with the vitest coverage threshold unchanged (80%), including a test for the repeated item text.
+- [x] `Grep "waiting.*in_progress.*awaiting_sign_off" dashboard/src` shows the list once, outside the tests.
+- [x] `npm run e2e` passes.
 
 ### Phase 8: restart from a clean state and run five claims
 
@@ -306,10 +308,10 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] The queue page shows the to-do list filling in and being ticked off, then the summary; light and dark mode are checked; a claim page shows its steps and the sections it read; the instructions page shows both new texts.
-- [ ] `GET /api/claims` shows exactly five claims decided, awaiting sign-off or left for a handler, 20 waiting, none in progress.
-- [ ] I report what each of the five decided, next to the last hand check in `docs/STATUS.md` (CLM-1001 approved for $420.00 and paid, CLM-1008 and CLM-1011 approved and waiting for sign-off, CLM-1018 referred, CLM-1010 declined). If one differs I say which and why I think so, without opening `data/evals/`. These are not an answer key.
-- [ ] I reseed afterwards.
+- [x] The queue page shows the to-do list filling in and being ticked off, then the summary; light and dark mode are checked; a claim page shows its steps and the sections it read; the instructions page shows both new texts.
+- [x] `GET /api/claims` shows exactly five claims decided, awaiting sign-off or left for a handler, 20 waiting, none in progress.
+- [x] I report what each of the five decided, next to the last hand check in `docs/STATUS.md` (CLM-1001 approved for $420.00 and paid, CLM-1008 and CLM-1011 approved and waiting for sign-off, CLM-1018 referred, CLM-1010 declined). If one differs I say which and why I think so, without opening `data/evals/`. These are not an answer key.
+- [x] I reseed afterwards.
 
 ### Phase 9: the documents, and the report
 
@@ -317,9 +319,9 @@ The tests stay green at the end of every phase, and the OpenAPI snapshot is comp
 
 **Success criteria**
 
-- [ ] `PROCESS.md` and `CODE_STANDARDS.md` have the changes in section 4, each document stays short, and the voice matches.
-- [ ] Every rule the standards mark as checked has a test that exists and passes: `Grep "def test_" agent/tests/test_layout.py backend/tests/test_layout.py backend/tests/test_instructions.py` lists them.
-- [ ] `docs/TECH_STACK.md` and `docs/STATUS.md` show the agent's layout (the harness and the UnderCover side), the backend's, and the new checks. `docs/SPEC.md` needs no change; I confirm that.
-- [ ] No threshold lowered, no rule turned off and no file excluded: `git diff 779273d -- pyproject.toml eslint.config.js lefthook.yml package.json playwright.config.ts` shows no loosened setting.
-- [ ] `npm run check` passes: ruff, pyright, pytest at least 80% coverage, ESLint, Prettier, tsc, vitest at least 80%, and every Playwright test.
-- [ ] The final report lists, for each gap in section 1, the change and the file, and shows the three searches (the paths, the SQL, the imports) and the word counts.
+- [x] `PROCESS.md` and `CODE_STANDARDS.md` have the changes in section 4, each document stays short, and the voice matches.
+- [x] Every rule the standards mark as checked has a test that exists and passes: `Grep "def test_" agent/tests/test_layout.py backend/tests/test_layout.py backend/tests/test_instructions.py` lists them.
+- [x] `docs/TECH_STACK.md` and `docs/STATUS.md` show the agent's layout (the harness and the UnderCover side), the backend's, and the new checks. `docs/SPEC.md` needs no change; I confirm that.
+- [x] No threshold lowered, no rule turned off and no file excluded: `git diff 779273d -- pyproject.toml eslint.config.js lefthook.yml package.json playwright.config.ts` shows no loosened setting.
+- [x] `npm run check` passes: ruff, pyright, pytest at least 80% coverage, ESLint, Prettier, tsc, vitest at least 80%, and every Playwright test.
+- [x] The final report lists, for each gap in section 1, the change and the file, and shows the three searches (the paths, the SQL, the imports) and the word counts.
