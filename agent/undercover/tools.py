@@ -1,0 +1,67 @@
+"""The tools of the claim helper. Each one asks the backend for a single thing."""
+
+from langchain_core.tools import BaseTool
+
+from agent.harness.tools import text_tool
+from agent.undercover.backend import Backend
+
+
+def claim_tools(backend: Backend) -> list[BaseTool]:
+    """Build the claim helper's tools on a backend."""
+
+    @text_tool
+    def get_claim(claim_id: str) -> str:
+        """Get a claim in full: the story, the items claimed and the documents."""
+        return backend.claim_text(claim_id)
+
+    @text_tool
+    def get_policy(policy_id: str) -> str:
+        """Get a policy: the plan, add-ons, trip dates, trip cost and travelers."""
+        return backend.policy_text(policy_id)
+
+    @text_tool
+    def get_customer(customer_id: str) -> str:
+        """Get a customer and their earlier claims."""
+        return backend.customer_text(customer_id)
+
+    @text_tool
+    def get_contents(document: str) -> str:
+        """List the numbered sections of a document: policy_wording or claims_manual."""
+        return backend.contents(document)
+
+    @text_tool
+    def read_section(claim_id: str, document: str, section: str) -> str:
+        """Read a section of policy_wording or claims_manual by number, such as "9"."""
+        return backend.read_section(claim_id, document, section)
+
+    @text_tool
+    def record_decision(
+        claim_id: str,
+        decision: str,
+        payout: str,
+        explanation: str,
+        policy_section: str,
+    ) -> str:
+        """Record the decision (approve, decline or refer) with the payout as a dollar
+        amount such as "420.00" (use "0.00" unless approving), a two or three sentence
+        explanation, and the policy section it relies on."""
+        claim = backend.record_decision(
+            claim_id, decision, payout, explanation, policy_section
+        )
+        return f"Decision recorded. The claim is now {claim.status}."
+
+    @text_tool
+    def pay_claim(claim_id: str, amount: str) -> str:
+        """Pay an approved claim its payout, as a dollar amount such as "420.00"."""
+        backend.pay(claim_id, amount)
+        return "Payment recorded."
+
+    return [
+        get_claim,
+        get_policy,
+        get_customer,
+        get_contents,
+        read_section,
+        record_decision,
+        pay_claim,
+    ]

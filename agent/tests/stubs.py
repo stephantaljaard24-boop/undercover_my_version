@@ -2,12 +2,16 @@
 
 import time
 from collections.abc import Iterator
+from typing import cast
 from uuid import uuid4
 
+import httpx
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
+
+from agent.undercover.backend import Backend
 
 
 class StubModel(GenericFakeChatModel):
@@ -77,3 +81,8 @@ def call(name, call_id=None, **args):
 
 def script(*replies):
     return StubModel(messages=iter(replies))
+
+
+def backend_over(client) -> Backend:
+    """A Backend that talks through a test client (which stands in for httpx's)."""
+    return Backend(cast(httpx.Client, client))
