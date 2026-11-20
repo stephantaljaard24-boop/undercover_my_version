@@ -6,13 +6,13 @@ The claims pilot from `docs/SPEC.md` is built (`docs/PLAN.md`), and so is the ag
 
 - `npm run dev` starts the backend on port 8000 and the dashboard on port 5173.
 - `uv run -m agent` starts one run of the queue agent, which works every waiting claim. `uv run -m agent --limit 5` caps the run at five claims and leaves the rest waiting. `uv run -m agent CLM-1001` runs one claim with a fresh helper and no queue agent. It needs the backend running and `OPENROUTER_API_KEY` in `.env`; set `MODEL_NAME=openrouter/free` to use a free model.
-- `uv run -m backend.seed` resets the database (`backend/undercover.db`, or `UNDERCOVER_DB`) to the 25 waiting claims in `data/`. The backend loads it by itself when the file is missing.
+- `uv run -m backend.seed` resets the SQLite database (`backend/undercover.db`, or `UNDERCOVER_DB`) to the 25 waiting claims in `data/`. `npm run seed` does the same on Supabase, by passing `.env`, and drops the whole `undercover` schema first. The backend loads the database by itself when its tables are missing. A database made before this build has the old tables, so reseed it once.
 - `npm run check` runs every check.
 
 ## What's built
 
-- `backend/`: FastAPI and SQLite. Amounts go over the API as dollar strings, such as `"420.00"`.
-  - Inside: `main.py` only builds the app, `routes/` has the routes by resource (`claims`, `records`, `documents`, `runs`), `store.py` all the SQL, `rules.py` the status, attempts and sign-off rules, `data.py` the files in `data/`, `db.py` the connection and schema. `backend/tests/openapi.json` is the saved API; a test fails when the live API differs, so a build that changes the API saves the new one on purpose.
+- `backend/`: FastAPI on SQLAlchemy Core, with SQLite by default and Supabase (Postgres, in the `undercover` schema) when `DATABASE_URL` is in its environment. `npm run dev` passes `.env`, and the tests never do. Amounts go over the API as dollar strings, such as `"420.00"`.
+  - Inside: `main.py` only builds the app, `routes/` has the routes by resource (`claims`, `records`, `documents`, `runs`), `store.py` all the queries, `schema.py` the tables, `rules.py` the status, attempts and sign-off rules, `data.py` the files in `data/`, `db.py` the engine (at most 4 connections on Postgres) and resetting the schema. `backend/tests/openapi.json` is the saved API; a test fails when the live API differs, so a build that changes the API saves the new one on purpose.
   - `GET /api/claims` and `GET /api/claims/{claim_id}`: the queue and one claim in full
   - `GET /api/policies/{policy_id}` and `GET /api/customers/{customer_id}`: the policy, and the customer's name and earlier claims (no contact details)
   - `POST /api/claims/{claim_id}/start`: waiting to in progress

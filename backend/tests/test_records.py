@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from backend import db
+from backend import db, store
 from backend.main import app
 from backend.seed import seed
 
@@ -63,10 +63,9 @@ def test_texts(client):
 
 
 def test_seed_resets_the_database(client):
-    conn = db.connect()
-    with conn:
-        conn.execute("UPDATE claims SET status = 'decided'")
-    conn.close()
+    with db.engine().connect() as conn:
+        store.set_status(conn, "CLM-1001", "decided")
+    assert client.get("/api/claims/CLM-1001").json()["status"] == "decided"
     seed()
     assert {c["status"] for c in client.get("/api/claims").json()} == {"waiting"}
 

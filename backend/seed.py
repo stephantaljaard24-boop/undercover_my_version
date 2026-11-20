@@ -2,32 +2,33 @@
 
 import json
 
+from sqlalchemy import insert
+
+from backend import schema
 from backend.data import load_json
-from backend.db import SCHEMA, connect, db_path
+from backend.db import describe, engine, reset_schema
+
+
+def rows(key: str, records: list[dict]) -> list[dict]:
+    """Each record as a row of its id and its data."""
+    return [{key: r[key], "data": json.dumps(r, default=str)} for r in records]
 
 
 def seed() -> None:
     """Replace everything in the database with the starting queue."""
-    claims = load_json("claims.json")
-    policies = load_json("policies.json")
-    customers = load_json("customers.json")
-    conn = connect()
-    with conn:
-        conn.executescript(SCHEMA)
-        conn.executemany(
-            "INSERT INTO claims (claim_id, status, data) VALUES (?, 'waiting', ?)",
-            [(c["claim_id"], json.dumps(c, default=str)) for c in claims],
+    claims = rows("claim_id", load_json("claims.json"))
+    reset_schema()
+    with engine().begin() as conn:
+        conn.execute(
+            insert(schema.claims), [{**claim, "status": "waiting"} for claim in claims]
         )
-        conn.executemany(
-            "INSERT INTO policies (policy_id, data) VALUES (?, ?)",
-            [(p["policy_id"], json.dumps(p, default=str)) for p in policies],
+        conn.execute(
+            insert(schema.policies), rows("policy_id", load_json("policies.json"))
         )
-        conn.executemany(
-            "INSERT INTO customers (customer_id, data) VALUES (?, ?)",
-            [(c["customer_id"], json.dumps(c, default=str)) for c in customers],
+        conn.execute(
+            insert(schema.customers), rows("customer_id", load_json("customers.json"))
         )
-    conn.close()
-    print(f"Loaded {len(claims)} claims into {db_path()}")
+    print(f"Loaded {len(claims)} claims into {describe()}")
 
 
 if __name__ == "__main__":

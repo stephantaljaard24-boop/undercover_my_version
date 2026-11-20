@@ -1,8 +1,7 @@
 """The claims in the queue, and the steps that take one from waiting to decided."""
 
-import sqlite3
-
 from fastapi import APIRouter
+from sqlalchemy import Connection
 
 from backend import payout, rules, store
 from backend.models import (
@@ -22,7 +21,7 @@ router = APIRouter()
 
 
 def move(
-    conn: sqlite3.Connection, claim_id: str, source: Status, target: Status
+    conn: Connection, claim_id: str, source: Status, target: Status
 ) -> ClaimDetail:
     """Move a claim from one status to another, or raise a 409."""
     rules.require_status(claim_id, store.claim_row(conn, claim_id)["status"], source)

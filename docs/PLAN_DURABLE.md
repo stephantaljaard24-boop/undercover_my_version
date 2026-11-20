@@ -122,12 +122,14 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 
 **Success criteria**
 
-- [ ] The whole existing `backend` and `agent` suite passes on SQLite with `DATABASE_URL` removed, and `backend/tests/openapi.json` is unchanged and green.
-- [ ] New tests, with no connection made: a Postgres URL becomes a `postgresql+psycopg` engine URL with the `undercover` search path; the pool allows 4 connections at most; no `DATABASE_URL` gives SQLite on `UNDERCOVER_DB`; an empty `DATABASE_URL` counts as unset.
-- [ ] `backend/tests/test_layout.py` finds queries only in `store.py`, `db.py` and `schema.py` and now also catches Core (`select(`, `insert(`, `update(`, `delete(`, `.execute(`) anywhere else; `store.py` is under 300 lines.
-- [ ] `npm run check:python` passes.
+- [x] The whole existing `backend` and `agent` suite passes on SQLite with `DATABASE_URL` removed, and `backend/tests/openapi.json` is unchanged and green.
+- [x] New tests, with no connection made: a Postgres URL becomes a `postgresql+psycopg` engine URL with the `undercover` search path; the pool allows 4 connections at most; no `DATABASE_URL` gives SQLite on `UNDERCOVER_DB`; an empty `DATABASE_URL` counts as unset.
+- [x] `backend/tests/test_layout.py` finds queries only in `store.py`, `db.py` and `schema.py` and now also catches Core (`select(`, `insert(`, `update(`, `delete(`, `.execute(`) anywhere else; `store.py` is under 300 lines.
+- [x] `npm run check:python` passes.
 - [ ] With `.env` passed, `npm run seed` prints that 25 claims were loaded, and the Supabase MCP server's `list_tables` for the `undercover` schema shows `claims`, `policies`, `customers`, `decisions`, `payments`, `steps`, `reads` and `runs`, with 25 rows in `claims`. Running it a second time works. The `lab` schema's tables have the same row counts as before (3 payments, 23 checkpoints).
 - [ ] With `npm run dev` and `.env` in place, `curl.exe -s http://127.0.0.1:8000/api/claims` returns 25 `waiting` claims from Supabase, and with `DATABASE_URL` absent it returns them from SQLite.
+
+*Not yet done: the two live Supabase checks above. From this machine port 5432 to the session pooler times out (443 works), so they are done once the network allows it.*
 
 ## Phase 3: a sign-off in the product
 

@@ -1,13 +1,13 @@
-import sqlite3
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Connection
 
 from agent.harness import agents
 from agent.tests.stubs import backend_over
 from agent.undercover.backend import Backend
-from backend.db import connect
+from backend.db import engine
 
 
 @pytest.fixture(autouse=True)
@@ -22,8 +22,7 @@ def backend(client: TestClient) -> Backend:
 
 
 @pytest.fixture
-def db(client: TestClient) -> Iterator[sqlite3.Connection]:
+def db(client: TestClient) -> Iterator[Connection]:
     """The same database, to check what the backend stored."""
-    conn = connect()
-    yield conn
-    conn.close()
+    with engine().connect() as conn:
+        yield conn

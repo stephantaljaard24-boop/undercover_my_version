@@ -5,6 +5,12 @@ from backend.main import app
 from backend.seed import seed
 
 
+@pytest.fixture(autouse=True)
+def sqlite_only(monkeypatch):
+    """No test reaches Supabase, whatever the shell has."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("UNDERCOVER_DB", str(tmp_path / "test.db"))

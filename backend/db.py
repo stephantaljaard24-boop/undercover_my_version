@@ -1,66 +1,79 @@
-"""The SQLite store."""
+"""The database: Supabase when DATABASE_URL is set, else SQLite."""
 
 import os
-import sqlite3
+from collections.abc import Iterator
+from functools import cache
 from pathlib import Path
 
-DEFAULT_DB = Path(__file__).parent / "undercover.db"
+from sqlalchemy import Connection, Engine, create_engine, inspect, text
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.pool import NullPool
 
-SCHEMA = """
-DROP TABLE IF EXISTS claims;
-DROP TABLE IF EXISTS policies;
-DROP TABLE IF EXISTS customers;
-DROP TABLE IF EXISTS decisions;
-DROP TABLE IF EXISTS payments;
-DROP TABLE IF EXISTS steps;
-DROP TABLE IF EXISTS reads;
-DROP TABLE IF EXISTS runs;
-CREATE TABLE claims (
-    claim_id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    data TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE policies (policy_id TEXT PRIMARY KEY, data TEXT NOT NULL);
-CREATE TABLE customers (customer_id TEXT PRIMARY KEY, data TEXT NOT NULL);
-CREATE TABLE decisions (
-    claim_id TEXT PRIMARY KEY,
-    decision TEXT NOT NULL,
-    payout TEXT NOT NULL,
-    explanation TEXT NOT NULL,
-    policy_section TEXT NOT NULL
-);
-CREATE TABLE payments (claim_id TEXT PRIMARY KEY, amount TEXT NOT NULL);
-CREATE TABLE steps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    claim_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    text TEXT NOT NULL
-);
-CREATE TABLE reads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    claim_id TEXT NOT NULL,
-    document TEXT NOT NULL,
-    section TEXT NOT NULL,
-    UNIQUE (claim_id, document, section)
-);
-CREATE TABLE runs (
-    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    claim_limit INTEGER NOT NULL,
-    todos TEXT NOT NULL,
-    summary TEXT,
-    finished INTEGER NOT NULL DEFAULT 0
-);
-"""
+from backend.schema import metadata
+
+DEFAULT_DB = Path(__file__).parent / "undercover.db"
+SCHEMA = "undercover"
+POOL_SIZE = 2
+POOL_OVERFLOW = 2
 
 
 def db_path() -> Path:
-    """Return the database file, from UNDERCOVER_DB if it is set."""
+    """Return the SQLite file, from UNDERCOVER_DB if it is set."""
     return Path(os.getenv("UNDERCOVER_DB") or DEFAULT_DB)
 
 
-def connect() -> sqlite3.Connection:
-    """Open a connection to the database."""
-    conn = sqlite3.connect(db_path(), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+def postgres_url(url: str) -> URL:
+    """Turn a Postgres connection string into one for the psycopg driver."""
+    return make_url(url).set(drivername="postgresql+psycopg")
+
+
+@cache
+def make_engine(url: URL) -> Engine:
+    """Build the engine for a URL, once. Postgres keeps at most 4 connections."""
+    if url.drivername == "sqlite":
+        return create_engine(url, poolclass=NullPool)
+    return create_engine(
+        url,
+        connect_args={"options": f"-c search_path={SCHEMA}"},
+        pool_size=POOL_SIZE,
+        max_overflow=POOL_OVERFLOW,
+        pool_pre_ping=True,
+    )
+
+
+def engine() -> Engine:
+    """Return the engine for Supabase if DATABASE_URL is set, else for SQLite."""
+    if url := os.getenv("DATABASE_URL"):
+        return make_engine(postgres_url(url))
+    return make_engine(URL.create("sqlite", database=str(db_path())))
+
+
+def connection() -> Iterator[Connection]:
+    """Open a connection for the length of one request."""
+    with engine().connect() as conn:
+        yield conn
+
+
+def describe() -> str:
+    """Say which database the engine is on, without the password."""
+    return engine().url.render_as_string(hide_password=True)
+
+
+def tables_exist() -> bool:
+    """True when the database already has the claims table."""
+    return inspect(engine()).has_table("claims")
+
+
+def reset_schema() -> None:
+    """Empty the database and create the tables again.
+
+    On Postgres that drops the whole undercover schema, the agent's saved progress
+    included. The agent creates its own tables again the next time it runs.
+    """
+    if engine().dialect.name == "postgresql":
+        with engine().begin() as conn:
+            conn.execute(text(f"DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"))
+            conn.execute(text(f"CREATE SCHEMA {SCHEMA}"))
+    else:
+        metadata.drop_all(engine())
+    metadata.create_all(engine())

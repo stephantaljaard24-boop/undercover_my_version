@@ -5,14 +5,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from backend.db import db_path
+from backend.db import tables_exist
 from backend.routes import claims, documents, records, runs
 from backend.seed import seed
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    if not db_path().exists():
+    if not tables_exist():
         seed()
     yield
 

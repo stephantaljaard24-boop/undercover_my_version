@@ -1,10 +1,11 @@
-"""All the SQL: every statement the backend runs is written here."""
+"""All the queries: every statement the backend runs is written here, once."""
 
 import json
-import sqlite3
 
 from fastapi import HTTPException
+from sqlalchemy import Connection, RowMapping, exists, insert, literal, select, update
 
+from backend import schema
 from backend.models import (
     Claim,
     ClaimDetail,
@@ -21,36 +22,52 @@ from backend.models import (
 )
 
 
-def found(row: sqlite3.Row | None, key: object) -> sqlite3.Row:
+def found[Row](row: Row | None, key: object) -> Row:
     """Return the row, or raise a 404 naming the key it was looked up by."""
     if row is None:
         raise HTTPException(404, f"{key} not found")
     return row
 
 
-def claim_row(conn: sqlite3.Connection, claim_id: str) -> sqlite3.Row:
+def claim_row(conn: Connection, claim_id: str) -> RowMapping:
     """Return a claim's row (status, attempts and data), or raise a 404."""
-    row = conn.execute("SELECT * FROM claims WHERE claim_id = ?", (claim_id,))
-    return found(row.fetchone(), claim_id)
+    query = select(schema.claims).where(schema.claims.c.claim_id == claim_id)
+    return found(conn.execute(query).mappings().first(), claim_id)
 
 
-def set_status(conn: sqlite3.Connection, claim_id: str, status: Status) -> None:
-    with conn:
-        conn.execute(
-            "UPDATE claims SET status = ? WHERE claim_id = ?", (status, claim_id)
-        )
+def set_status(conn: Connection, claim_id: str, status: Status) -> None:
+    conn.execute(
+        update(schema.claims)
+        .where(schema.claims.c.claim_id == claim_id)
+        .values(status=status)
+    )
+    conn.commit()
 
 
-def claim_detail(conn: sqlite3.Connection, claim_id: str) -> ClaimDetail:
+def claim_detail(conn: Connection, claim_id: str) -> ClaimDetail:
     row = claim_row(conn, claim_id)
-    decision = conn.execute(
-        "SELECT decision, payout, explanation, policy_section FROM decisions"
-        " WHERE claim_id = ?",
-        (claim_id,),
-    ).fetchone()
-    payment = conn.execute(
-        "SELECT amount FROM payments WHERE claim_id = ?", (claim_id,)
-    ).fetchone()
+    decided = schema.decisions
+    decision = (
+        conn.execute(
+            select(
+                decided.c.decision,
+                decided.c.payout,
+                decided.c.explanation,
+                decided.c.policy_section,
+            ).where(decided.c.claim_id == claim_id)
+        )
+        .mappings()
+        .first()
+    )
+    payment = (
+        conn.execute(
+            select(schema.payments.c.amount).where(
+                schema.payments.c.claim_id == claim_id
+            )
+        )
+        .mappings()
+        .first()
+    )
     return ClaimDetail(
         **dict(Claim(**json.loads(row["data"]))),
         status=row["status"],
@@ -59,17 +76,22 @@ def claim_detail(conn: sqlite3.Connection, claim_id: str) -> ClaimDetail:
     )
 
 
-def claim_summaries(conn: sqlite3.Connection) -> list[ClaimSummary]:
+def claim_summaries(conn: Connection) -> list[ClaimSummary]:
     """Every claim in the queue, with its customer's name and its decision."""
     names = {
         row["customer_id"]: json.loads(row["data"])["name"]
-        for row in conn.execute("SELECT customer_id, data FROM customers")
+        for row in conn.execute(
+            select(schema.customers.c.customer_id, schema.customers.c.data)
+        ).mappings()
     }
+    claims, decisions = schema.claims, schema.decisions
     rows = conn.execute(
-        "SELECT claims.status, claims.data, decisions.decision, decisions.payout"
-        " FROM claims LEFT JOIN decisions ON decisions.claim_id = claims.claim_id"
-        " ORDER BY claims.claim_id"
-    )
+        select(claims.c.status, claims.c.data, decisions.c.decision, decisions.c.payout)
+        .select_from(
+            claims.outerjoin(decisions, decisions.c.claim_id == claims.c.claim_id)
+        )
+        .order_by(claims.c.claim_id)
+    ).mappings()
     summaries = []
     for row in rows:
         claim = Claim(**json.loads(row["data"]))
@@ -85,152 +107,170 @@ def claim_summaries(conn: sqlite3.Connection) -> list[ClaimSummary]:
     return summaries
 
 
-def policy(conn: sqlite3.Connection, policy_id: str) -> Policy:
-    row = conn.execute("SELECT data FROM policies WHERE policy_id = ?", (policy_id,))
-    return Policy(**json.loads(found(row.fetchone(), policy_id)["data"]))
+def policy(conn: Connection, policy_id: str) -> Policy:
+    query = select(schema.policies.c.data).where(
+        schema.policies.c.policy_id == policy_id
+    )
+    return Policy(**json.loads(found(conn.execute(query).first(), policy_id)[0]))
 
 
-def claim_policy(conn: sqlite3.Connection, claim_id: str) -> Policy:
+def claim_policy(conn: Connection, claim_id: str) -> Policy:
     """The policy a claim is made under."""
     claim = Claim(**json.loads(claim_row(conn, claim_id)["data"]))
     return policy(conn, claim.policy_id)
 
 
-def customer(conn: sqlite3.Connection, customer_id: str) -> Customer:
-    row = conn.execute(
-        "SELECT data FROM customers WHERE customer_id = ?", (customer_id,)
+def customer(conn: Connection, customer_id: str) -> Customer:
+    query = select(schema.customers.c.data).where(
+        schema.customers.c.customer_id == customer_id
     )
-    return Customer(**json.loads(found(row.fetchone(), customer_id)["data"]))
+    return Customer(**json.loads(found(conn.execute(query).first(), customer_id)[0]))
 
 
-def steps(conn: sqlite3.Connection, claim_id: str) -> list[Step]:
+def steps(conn: Connection, claim_id: str) -> list[Step]:
     """The steps taken on a claim, oldest first."""
     rows = conn.execute(
-        "SELECT kind, text FROM steps WHERE claim_id = ? ORDER BY id", (claim_id,)
-    )
+        select(schema.steps.c.kind, schema.steps.c.text)
+        .where(schema.steps.c.claim_id == claim_id)
+        .order_by(schema.steps.c.id)
+    ).mappings()
     return [Step(**row) for row in rows]
 
 
-def add_step(conn: sqlite3.Connection, claim_id: str, step: Step) -> None:
-    with conn:
-        conn.execute(
-            "INSERT INTO steps (claim_id, kind, text) VALUES (?, ?, ?)",
-            (claim_id, step.kind, step.text),
-        )
+def add_step(conn: Connection, claim_id: str, step: Step) -> None:
+    conn.execute(
+        insert(schema.steps).values(claim_id=claim_id, kind=step.kind, text=step.text)
+    )
+    conn.commit()
 
 
 def add_decision(
-    conn: sqlite3.Connection, claim_id: str, decision: Decision, status: Status
+    conn: Connection, claim_id: str, decision: Decision, status: Status
 ) -> None:
     """Store a decision and move the claim to the status that follows it."""
-    with conn:
-        conn.execute(
-            "INSERT INTO decisions"
-            " (claim_id, decision, payout, explanation, policy_section)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (
-                claim_id,
-                decision.decision,
-                str(decision.payout),
-                decision.explanation,
-                decision.policy_section,
-            ),
+    conn.execute(
+        insert(schema.decisions).values(
+            claim_id=claim_id,
+            decision=decision.decision,
+            payout=str(decision.payout),
+            explanation=decision.explanation,
+            policy_section=decision.policy_section,
         )
-        conn.execute(
-            "UPDATE claims SET status = ? WHERE claim_id = ?", (status, claim_id)
-        )
+    )
+    conn.execute(
+        update(schema.claims)
+        .where(schema.claims.c.claim_id == claim_id)
+        .values(status=status)
+    )
+    conn.commit()
 
 
-def add_payment(conn: sqlite3.Connection, claim_id: str, payment: Payment) -> None:
-    with conn:
-        conn.execute(
-            "INSERT INTO payments (claim_id, amount) VALUES (?, ?)",
-            (claim_id, str(payment.amount)),
-        )
+def add_payment(conn: Connection, claim_id: str, payment: Payment) -> None:
+    conn.execute(
+        insert(schema.payments).values(claim_id=claim_id, amount=str(payment.amount))
+    )
+    conn.commit()
 
 
 def record_failure(
-    conn: sqlite3.Connection,
-    claim_id: str,
-    attempts: int,
-    status: Status,
-    reason: str,
+    conn: Connection, claim_id: str, attempts: int, status: Status, reason: str
 ) -> None:
     """Store a failed attempt: the new status and count, and an error step."""
-    with conn:
-        conn.execute(
-            "UPDATE claims SET status = ?, attempts = ? WHERE claim_id = ?",
-            (status, attempts, claim_id),
+    conn.execute(
+        update(schema.claims)
+        .where(schema.claims.c.claim_id == claim_id)
+        .values(status=status, attempts=attempts)
+    )
+    conn.execute(
+        insert(schema.steps).values(
+            claim_id=claim_id,
+            kind="error",
+            text=f"Attempt {attempts} failed: {reason}",
         )
-        conn.execute(
-            "INSERT INTO steps (claim_id, kind, text) VALUES (?, 'error', ?)",
-            (claim_id, f"Attempt {attempts} failed: {reason}"),
-        )
+    )
+    conn.commit()
 
 
-def add_read(conn: sqlite3.Connection, claim_id: str, ref: SectionRef) -> None:
+def add_read(conn: Connection, claim_id: str, ref: SectionRef) -> None:
     """Record that a section was read on a claim, once."""
-    with conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO reads (claim_id, document, section)"
-            " VALUES (?, ?, ?)",
-            (claim_id, ref.document, ref.section),
-        )
+    reads = schema.reads
+    already = exists().where(
+        reads.c.claim_id == claim_id,
+        reads.c.document == ref.document,
+        reads.c.section == ref.section,
+    )
+    new = select(literal(claim_id), literal(ref.document), literal(ref.section)).where(
+        ~already
+    )
+    conn.execute(insert(reads).from_select(["claim_id", "document", "section"], new))
+    conn.commit()
 
 
-def reads(conn: sqlite3.Connection, claim_id: str) -> list[SectionRef]:
+def reads(conn: Connection, claim_id: str) -> list[SectionRef]:
     """The sections read on a claim, in the order first read."""
     rows = conn.execute(
-        "SELECT document, section FROM reads WHERE claim_id = ? ORDER BY id",
-        (claim_id,),
-    )
+        select(schema.reads.c.document, schema.reads.c.section)
+        .where(schema.reads.c.claim_id == claim_id)
+        .order_by(schema.reads.c.id)
+    ).mappings()
     return [SectionRef(**row) for row in rows]
 
 
-def run_of(row: sqlite3.Row) -> Run:
+def run_of(row: RowMapping) -> Run:
     return Run(
         run_id=row["run_id"],
         claim_limit=row["claim_limit"],
         todos=json.loads(row["todos"]),
         summary=row["summary"],
-        finished=bool(row["finished"]),
+        finished=row["finished"],
     )
 
 
-def run(conn: sqlite3.Connection, run_id: int) -> Run:
-    row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,))
-    return run_of(found(row.fetchone(), run_id))
+def run(conn: Connection, run_id: int) -> Run:
+    query = select(schema.runs).where(schema.runs.c.run_id == run_id)
+    return run_of(found(conn.execute(query).mappings().first(), run_id))
 
 
-def start_run(conn: sqlite3.Connection, claim_limit: int) -> Run:
-    with conn:
-        row = conn.execute(
-            "INSERT INTO runs (claim_limit, todos) VALUES (?, '[]') RETURNING *",
-            (claim_limit,),
-        ).fetchone()
+def start_run(conn: Connection, claim_limit: int) -> Run:
+    row = (
+        conn.execute(
+            insert(schema.runs)
+            .values(claim_limit=claim_limit, todos="[]")
+            .returning(schema.runs)
+        )
+        .mappings()
+        .one()
+    )
+    conn.commit()
     return run_of(row)
 
 
-def current_run(conn: sqlite3.Connection) -> Run | None:
-    row = conn.execute("SELECT * FROM runs ORDER BY run_id DESC LIMIT 1").fetchone()
+def current_run(conn: Connection) -> Run | None:
+    row = (
+        conn.execute(select(schema.runs).order_by(schema.runs.c.run_id.desc()).limit(1))
+        .mappings()
+        .first()
+    )
     return run_of(row) if row else None
 
 
-def set_todos(conn: sqlite3.Connection, run_id: int, todos: list[Todo]) -> Run:
+def set_todos(conn: Connection, run_id: int, todos: list[Todo]) -> Run:
     run(conn, run_id)
-    with conn:
-        conn.execute(
-            "UPDATE runs SET todos = ? WHERE run_id = ?",
-            (json.dumps([todo.model_dump() for todo in todos]), run_id),
-        )
+    conn.execute(
+        update(schema.runs)
+        .where(schema.runs.c.run_id == run_id)
+        .values(todos=json.dumps([todo.model_dump() for todo in todos]))
+    )
+    conn.commit()
     return run(conn, run_id)
 
 
-def finish_run(conn: sqlite3.Connection, run_id: int, summary: str) -> Run:
+def finish_run(conn: Connection, run_id: int, summary: str) -> Run:
     run(conn, run_id)
-    with conn:
-        conn.execute(
-            "UPDATE runs SET summary = ?, finished = 1 WHERE run_id = ?",
-            (summary, run_id),
-        )
+    conn.execute(
+        update(schema.runs)
+        .where(schema.runs.c.run_id == run_id)
+        .values(summary=summary, finished=True)
+    )
+    conn.commit()
     return run(conn, run_id)
