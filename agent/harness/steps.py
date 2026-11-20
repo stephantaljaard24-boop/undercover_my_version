@@ -4,7 +4,10 @@ import json
 from collections.abc import Callable, Iterator
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
+
+from agent.harness import tracing
 
 RESULT_LIMIT = 400
 
@@ -27,12 +30,20 @@ def steps_of(message: BaseMessage) -> list[tuple[str, str]]:
 
 
 def stream_steps(
-    agent: CompiledStateGraph, prompt: str, thread_id: str
+    agent: CompiledStateGraph,
+    prompt: str,
+    thread_id: str,
+    tags: list[str] | None = None,
 ) -> Iterator[tuple[str, str]]:
-    """Run the agent on a prompt and yield each step as it happens."""
+    """Run the agent on a prompt and yield each step as it happens.
+
+    With tags, the run is traced in a Langfuse session named for the thread.
+    """
+    config = tracing.settings(thread_id, tags) if tags is not None else RunnableConfig()
+    config["configurable"] = {"thread_id": thread_id}
     chunks = agent.stream(
         {"messages": [{"role": "user", "content": prompt}]},
-        config={"configurable": {"thread_id": thread_id}},
+        config=config,
         stream_mode="updates",
     )
     for chunk in chunks:
@@ -46,12 +57,17 @@ def run_agent(
     prompt: str,
     thread_id: str,
     on_step: Callable[[str, str], object] | None = None,
+    tags: list[str] | None = None,
 ) -> str:
     """Run the agent on a prompt, hand each step to on_step, return the last reply."""
     reply = ""
-    for kind, text in stream_steps(agent, prompt, thread_id):
-        if on_step:
-            on_step(kind, text)
-        if kind == "reply":
-            reply = text
+    try:
+        for kind, text in stream_steps(agent, prompt, thread_id, tags):
+            if on_step:
+                on_step(kind, text)
+            if kind == "reply":
+                reply = text
+    finally:
+        if tags is not None:
+            tracing.flush()
     return reply

@@ -8,7 +8,7 @@ Reach the decision a careful handler would reach on this claim: approve, decline
 
 ## How to decide
 
-The policy wording is the contract and always comes first. The claims manual covers what the wording leaves open, including how a handler works a claim. Both documents are looked up by section: read their contents, then read the sections this claim needs and the ones you rely on, and nothing else. Read every document on the claim in full. Do not guess at facts that the claim, its documents, its policy and the customer's history do not give.
+The policy wording is the contract and always comes first. The claims manual covers what the wording leaves open, including how a handler works a claim. Both documents are looked up by section: read their contents, then read the sections this claim needs and the ones you rely on, and nothing else. Read every document on the claim in full. Do not guess at facts that the claim, its documents, its policy and the customer's history do not give. You judge what is covered and which lines count; the payout on an approval comes from UnderCover's payout rules, never from your own sums.
 
 ## What you must never do
 

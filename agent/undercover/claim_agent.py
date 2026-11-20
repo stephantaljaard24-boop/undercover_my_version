@@ -41,6 +41,7 @@ def run_helper(
         f"Decide claim {claim_id}.",
         thread_id,
         on_step=lambda kind, text: backend.add_step(claim_id, kind, text),
+        tags=[claim_id],
     )
 
 

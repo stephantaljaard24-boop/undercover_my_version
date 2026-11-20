@@ -4,13 +4,15 @@ import sqlite3
 
 from fastapi import APIRouter
 
-from backend import rules, store
+from backend import payout, rules, store
 from backend.models import (
     ClaimDetail,
     ClaimSummary,
     Decision,
     Failure,
     Payment,
+    PayoutCalculation,
+    PayoutRequest,
     Status,
     Step,
 )
@@ -59,6 +61,19 @@ def add_step(claim_id: str, step: Step, conn: Db) -> Step:
     store.claim_row(conn, claim_id)
     store.add_step(conn, claim_id, step)
     return step
+
+
+@router.post("/claims/{claim_id}/payout-calculation", operation_id="calculate_payout")
+def calculate_payout(
+    claim_id: str, request: PayoutRequest, conn: Db
+) -> PayoutCalculation:
+    """Work out the payout on an approved claim with UnderCover's payout rules."""
+    return payout.work_out_payout(
+        store.claim_policy(conn, claim_id),
+        request.benefit,
+        request.lines,
+        request.paid_by_others,
+    )
 
 
 @router.post("/claims/{claim_id}/decision", operation_id="record_decision")

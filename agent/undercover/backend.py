@@ -2,11 +2,11 @@
 
 import os
 from types import TracebackType
-from typing import Self
+from typing import Literal, Self
 
 import httpx
 from langchain_core.tools import ToolException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agent.harness.todos import TodoItem
 
@@ -36,6 +36,59 @@ class Claim(BaseModel):
     status: str
     decision: Decision | None = None
     payment: Payment | None = None
+
+
+Benefit = Literal[
+    "trip_cancellation",
+    "trip_interruption",
+    "trip_delay",
+    "baggage_delay",
+    "baggage",
+    "passport",
+    "emergency_medical",
+]
+
+
+class PayoutLine(BaseModel):
+    """One covered item or expense on a claim."""
+
+    description: str = Field(description="What the item or expense is")
+    amount: str = Field(
+        description="The total claimed for the line in US dollars before any limits, "
+        'such as "245.00". For several items, the total for all of them'
+    )
+    quantity: int = Field(
+        description="How many separate items the line holds, such as 3 for three "
+        "shirts. A pair or a set is one item. Use 1 when it does not apply"
+    )
+    kind: Literal[
+        "item", "electronics", "cash", "expense", "hotel", "meals_without_receipts"
+    ] = Field(
+        description="item: a belonging, or a pair or set that counts as one item. "
+        "electronics: only a phone, tablet, laptop, camera or its lens, e-reader or "
+        "smartwatch; any other device is an item. cash: cash that was lost or stolen. "
+        "expense: any other cost with a receipt, such as a medical bill, a meal, a "
+        "taxi, a fee or a prepaid trip cost. hotel: a hotel during a trip delay. "
+        "meals_without_receipts: meals during a trip delay with no receipts"
+    )
+    nights: int = Field(description="For a hotel, the number of nights, else 0")
+    hours: str = Field(
+        description="For meals without receipts, the length of the delay in hours, "
+        'such as "30", else "0"'
+    )
+
+
+class CalculationStep(BaseModel):
+    step: str
+    amount: str
+
+
+class PayoutCalculation(BaseModel):
+    """The payout the rules give, and the calculation behind it."""
+
+    calculation: list[CalculationStep]
+    payout: str
+    needs_sign_off: bool
 
 
 class QueuedClaim(BaseModel):
@@ -132,6 +185,24 @@ class Backend:
         }
         response = self._send("POST", f"/api/claims/{claim_id}/decision", body)
         return Claim(**response.json())
+
+    def calculate_payout(
+        self,
+        claim_id: str,
+        benefit: Benefit,
+        lines: list[PayoutLine],
+        paid_by_others: str,
+    ) -> PayoutCalculation:
+        """Work out the payout on an approved claim with the backend's payout rules."""
+        body = {
+            "benefit": benefit,
+            "lines": [line.model_dump() for line in lines],
+            "paid_by_others": paid_by_others,
+        }
+        response = self._send(
+            "POST", f"/api/claims/{claim_id}/payout-calculation", body
+        )
+        return PayoutCalculation(**response.json())
 
     def pay(self, claim_id: str, amount: str) -> Claim:
         body = {"amount": amount}

@@ -90,6 +90,12 @@ def policy(conn: sqlite3.Connection, policy_id: str) -> Policy:
     return Policy(**json.loads(found(row.fetchone(), policy_id)["data"]))
 
 
+def claim_policy(conn: sqlite3.Connection, claim_id: str) -> Policy:
+    """The policy a claim is made under."""
+    claim = Claim(**json.loads(claim_row(conn, claim_id)["data"]))
+    return policy(conn, claim.policy_id)
+
+
 def customer(conn: sqlite3.Connection, customer_id: str) -> Customer:
     row = conn.execute(
         "SELECT data FROM customers WHERE customer_id = ?", (customer_id,)

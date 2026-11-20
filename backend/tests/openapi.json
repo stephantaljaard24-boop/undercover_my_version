@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "CalcStep": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "amount"
+        ],
+        "title": "CalcStep",
+        "type": "object"
+      },
       "ClaimDetail": {
         "properties": {
           "amount_claimed": {
@@ -420,6 +438,140 @@
           "amount"
         ],
         "title": "Payment",
+        "type": "object"
+      },
+      "PayoutCalculation": {
+        "properties": {
+          "calculation": {
+            "items": {
+              "$ref": "#/components/schemas/CalcStep"
+            },
+            "title": "Calculation",
+            "type": "array"
+          },
+          "needs_sign_off": {
+            "title": "Needs Sign Off",
+            "type": "boolean"
+          },
+          "payout": {
+            "title": "Payout",
+            "type": "string"
+          }
+        },
+        "required": [
+          "calculation",
+          "payout",
+          "needs_sign_off"
+        ],
+        "title": "PayoutCalculation",
+        "type": "object"
+      },
+      "PayoutLine": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Hours"
+          },
+          "kind": {
+            "enum": [
+              "item",
+              "electronics",
+              "cash",
+              "expense",
+              "hotel",
+              "meals_without_receipts"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "nights": {
+            "minimum": 0.0,
+            "title": "Nights",
+            "type": "integer"
+          },
+          "quantity": {
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description",
+          "amount",
+          "quantity",
+          "kind",
+          "nights",
+          "hours"
+        ],
+        "title": "PayoutLine",
+        "type": "object"
+      },
+      "PayoutRequest": {
+        "properties": {
+          "benefit": {
+            "enum": [
+              "trip_cancellation",
+              "trip_interruption",
+              "trip_delay",
+              "baggage_delay",
+              "baggage",
+              "passport",
+              "emergency_medical"
+            ],
+            "title": "Benefit",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "paid_by_others": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Paid By Others"
+          }
+        },
+        "required": [
+          "benefit",
+          "lines",
+          "paid_by_others"
+        ],
+        "title": "PayoutRequest",
         "type": "object"
       },
       "Policy": {
@@ -978,6 +1130,56 @@
           }
         },
         "summary": "Pay Claim"
+      }
+    },
+    "/api/claims/{claim_id}/payout-calculation": {
+      "post": {
+        "description": "Work out the payout on an approved claim with UnderCover's payout rules.",
+        "operationId": "calculate_payout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCalculation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Calculate Payout"
       }
     },
     "/api/claims/{claim_id}/reads": {

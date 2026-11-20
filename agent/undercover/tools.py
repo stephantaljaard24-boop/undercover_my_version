@@ -3,7 +3,7 @@
 from langchain_core.tools import BaseTool
 
 from agent.harness.tools import text_tool
-from agent.undercover.backend import Backend
+from agent.undercover.backend import Backend, Benefit, PayoutLine
 
 
 def claim_tools(backend: Backend) -> list[BaseTool]:
@@ -35,6 +35,22 @@ def claim_tools(backend: Backend) -> list[BaseTool]:
         return backend.read_section(claim_id, document, section)
 
     @text_tool
+    def calculate_payout(
+        claim_id: str,
+        benefit: Benefit,
+        lines: list[PayoutLine],
+        paid_by_others: str,
+    ) -> str:
+        """Work out the payout on an approved claim with UnderCover's payout rules.
+        Give the benefit the claim is paid under, one line for each covered item or
+        expense (leave out any excluded ones), and anything a carrier, hotel or other
+        party has paid or refunded for the same loss as a dollar amount such as
+        "100.00", or "0.00". It returns the calculation, the payout and whether the
+        payout needs a handler's sign-off."""
+        result = backend.calculate_payout(claim_id, benefit, lines, paid_by_others)
+        return result.model_dump_json(indent=2)
+
+    @text_tool
     def record_decision(
         claim_id: str,
         decision: str,
@@ -62,6 +78,7 @@ def claim_tools(backend: Backend) -> list[BaseTool]:
         get_customer,
         get_contents,
         read_section,
+        calculate_payout,
         record_decision,
         pay_claim,
     ]

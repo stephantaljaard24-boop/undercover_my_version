@@ -265,3 +265,38 @@ def test_system_prompt_is_the_claim_instructions(backend):
     assert first.type == "system"
     assert first.content == backend.claim_instructions()
     assert llm.seen[0][1].content == "Decide claim CLM-1001."
+
+
+def test_the_payout_tool_returns_the_calculation(backend):
+    lines = [
+        {
+            "description": "Suitcase",
+            "amount": "239.99",
+            "quantity": 1,
+            "kind": "item",
+            "nights": 0,
+            "hours": "0",
+        }
+    ]
+    text = tools_of(backend)["calculate_payout"].invoke(
+        {
+            "claim_id": "CLM-1001",
+            "benefit": "baggage",
+            "lines": lines,
+            "paid_by_others": "100.00",
+        }
+    )
+    assert '"payout": "89.99"' in text
+    assert '"needs_sign_off": false' in text
+
+
+def test_the_payout_tool_passes_on_a_refusal(backend):
+    text = tools_of(backend)["calculate_payout"].invoke(
+        {
+            "claim_id": "CLM-0000",
+            "benefit": "baggage",
+            "lines": [],
+            "paid_by_others": "0.00",
+        }
+    )
+    assert text == "Refused (404): CLM-0000 not found"

@@ -122,6 +122,46 @@ class Customer(BaseModel):
     previous_claims: list[PreviousClaim]
 
 
+Benefit = Literal[
+    "trip_cancellation",
+    "trip_interruption",
+    "trip_delay",
+    "baggage_delay",
+    "baggage",
+    "passport",
+    "emergency_medical",
+]
+LineKind = Literal[
+    "item", "electronics", "cash", "expense", "hotel", "meals_without_receipts"
+]
+
+
+class PayoutLine(BaseModel):
+    description: str
+    amount: Money
+    quantity: Annotated[int, Field(ge=1)]
+    kind: LineKind
+    nights: Annotated[int, Field(ge=0)]
+    hours: Annotated[Decimal, Field(ge=0)]
+
+
+class PayoutRequest(BaseModel):
+    benefit: Benefit
+    lines: list[PayoutLine]
+    paid_by_others: Money
+
+
+class CalcStep(BaseModel):
+    step: str
+    amount: Money
+
+
+class PayoutCalculation(BaseModel):
+    calculation: list[CalcStep]
+    payout: Money
+    needs_sign_off: bool
+
+
 class Step(BaseModel):
     kind: StepKind
     text: str
