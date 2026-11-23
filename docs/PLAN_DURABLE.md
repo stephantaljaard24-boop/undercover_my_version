@@ -195,7 +195,7 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes. The tests use a stub model and an `InMemorySaver`, and none calls a model or Supabase. They cover:
+- [x] `uv run pytest -q agent` passes. The tests use a stub model and an `InMemorySaver`, and none calls a model or Supabase. They cover:
   - [ ] A claim within the limit: the stub reads the claim, calculates, decides; the claim ends `decided` and paid, with one decision, one payment and its steps in order (tool calls, results, the model's reply, the recorded decision and the payment).
   - [ ] A claim over the limit: the run ends with the graph paused at `sign_off`, the claim `awaiting_sign_off`, no payment, and `needs_sign_off` set from the backend's answer. Signing off in the backend and calling `carry_on` pays it once and ends `decided`. Calling `carry_on` again changes nothing.
   - [ ] Signing off before the graph pauses: `work_claim` pauses, sees the sign-off, carries on and pays once.
@@ -205,9 +205,11 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
   - [ ] A replay of `record` and of `pay` (the node run twice on the same state) leaves one decision and one payment.
   - [ ] The model-call limit stops the 31st call with a clear error and counts as an error before the decision; a failing model call is retried.
   - [ ] The state the graph saves has the claim id, the decision and the payout, and the tools no longer include `record_decision` or `pay_claim`.
-- [ ] `agent/tests/test_layout.py` still shows the harness importing nothing from the product, and that nothing imports `agent.__main__`. `test_instructions.py` passes.
-- [ ] `npm run check:python` passes.
+- [x] `agent/tests/test_layout.py` still shows the harness importing nothing from the product, and that nothing imports `agent.__main__`. `test_instructions.py` passes.
+- [x] `npm run check:python` passes.
 - [ ] By hand, on Supabase with `npm run seed` first, one claim over the limit (CLM-1008) with the default model: `uv run -m agent CLM-1008` ends paused, `GET /api/claims/CLM-1008` shows `awaiting_sign_off` and the thread id, and the Supabase MCP server's `select thread_id, count(*) from undercover.checkpoints group by 1` shows that thread. Signing off through the backend (`curl.exe`, with the service not running yet) and then `uv run -m agent CLM-1008` again pays it, with the same thread. I report the decision and the payout.
+
+*Not yet done: the live Supabase check above, for the same reason as Phase 2. The graph itself ran with the default model on a local backend and an in-memory saver: `CLM-1008` was approved for $2,240.00, with a `calculate_payout` call, then paused with the payment waiting for sign-off, in Langfuse session `CLM-1008-2da35851`.*
 
 ## Phase 5: the agent's service and picking up after a restart
 

@@ -29,13 +29,26 @@ class Payment(BaseModel):
     amount: str
 
 
+class SignOff(BaseModel):
+    signed_off_by: str
+
+
 class Claim(BaseModel):
     """A claim as the agent works it: where it stands, and what has happened."""
 
     claim_id: str
     status: str
+    thread_id: str | None = None
     decision: Decision | None = None
+    sign_off: SignOff | None = None
     payment: Payment | None = None
+
+
+class StartedClaim(BaseModel):
+    """A claim that has just been started, with the thread its work is saved on."""
+
+    claim_id: str
+    thread_id: str
 
 
 Benefit = Literal[
@@ -162,8 +175,9 @@ class Backend:
         body = {"document": document, "section": section}
         return self._send("POST", f"/api/claims/{claim_id}/reads", body).text
 
-    def start_claim(self, claim_id: str) -> Claim:
-        return Claim(**self._send("POST", f"/api/claims/{claim_id}/start").json())
+    def start_claim(self, claim_id: str) -> StartedClaim:
+        response = self._send("POST", f"/api/claims/{claim_id}/start")
+        return StartedClaim(**response.json())
 
     def fail_claim(self, claim_id: str, reason: str) -> Claim:
         body = {"reason": reason}

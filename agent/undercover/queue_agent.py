@@ -9,8 +9,8 @@ from agent.harness.model import chat_model
 from agent.harness.steps import run_agent
 from agent.harness.todos import todo_tool
 from agent.harness.tools import text_tool
-from agent.undercover import claim_agent
 from agent.undercover.backend import Backend, Refused
+from agent.undercover.claim_agent import ClaimAgent
 
 QUEUE_CALL_LIMIT = 400
 
@@ -23,7 +23,7 @@ def end_run(backend: Backend, run_id: int, run: Run, summary: str) -> str:
 
 
 def queue_tools(
-    backend: Backend, run_id: int, run: Run, claim_llm: BaseChatModel | None
+    backend: Backend, run_id: int, run: Run, claims: ClaimAgent
 ) -> list[BaseTool]:
     """Build the queue agent's tools for one run."""
 
@@ -50,7 +50,7 @@ def queue_tools(
                 return f"Refused: {claim_id} is {status}, not waiting."
             if not run.admit(claim_id):
                 return f"Refused: this run's cap of {run.limit} claims is used up."
-            line = claim_agent.work_claim(backend, claim_id, claim_llm)
+            line = claims.work_claim(claim_id)
         print(line)
         return line
 
@@ -73,9 +73,9 @@ def queue_tools(
 
 def run_queue(
     backend: Backend,
+    claims: ClaimAgent,
     limit: int | None = None,
     llm: BaseChatModel | None = None,
-    claim_llm: BaseChatModel | None = None,
 ) -> str:
     """Run the queue agent on the waiting claims, up to a cap; return its summary."""
     waiting = backend.waiting_claims()
@@ -87,7 +87,7 @@ def run_queue(
     run = Run(cap)
     agent = build_agent(
         llm or chat_model(),
-        queue_tools(backend, run_id, run, claim_llm),
+        queue_tools(backend, run_id, run, claims),
         backend.queue_instructions(),
         QUEUE_CALL_LIMIT,
     )

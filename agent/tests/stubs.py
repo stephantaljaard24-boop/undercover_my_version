@@ -25,9 +25,16 @@ class StubModel(GenericFakeChatModel):
     def _generate(self, messages, *args, **kwargs):
         self.seen.append(messages)
         try:
-            return super()._generate(messages, *args, **kwargs)
+            reply = next(self.messages)
         except StopIteration:
             raise RuntimeError("model is down") from None
+        if isinstance(reply, BaseException):
+            raise reply
+        return ChatResult(generations=[ChatGeneration(message=cast(AIMessage, reply))])
+
+
+class Killed(BaseException):
+    """The process is stopped, as by a crash or Ctrl-C. Nothing catches it."""
 
 
 class FlakyModel(StubModel):
@@ -69,7 +76,7 @@ class ByClaimModel(StubModel):
         reply = script_.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return ChatResult(generations=[ChatGeneration(message=reply)])
+        return ChatResult(generations=[ChatGeneration(message=cast(AIMessage, reply))])
 
 
 def call(name, call_id=None, **args):
@@ -79,10 +86,22 @@ def call(name, call_id=None, **args):
     )
 
 
+def decision_call(**changes):
+    """The model's decision on a claim, which the graph records."""
+    decision = {
+        "decision": "approve",
+        "payout": "420.00",
+        "explanation": "The delay was long enough and the receipts are in order.",
+        "policy_section": "3. Trip Delay",
+        **changes,
+    }
+    return call("ClaimDecision", **decision)
+
+
 def script(*replies):
     return StubModel(messages=iter(replies))
 
 
-def backend_over(client) -> Backend:
+def backend_over[B: Backend](client, kind: type[B] = Backend) -> B:  # type: ignore[assignment]
     """A Backend that talks through a test client (which stands in for httpx's)."""
-    return Backend(cast(httpx.Client, client))
+    return kind(cast(httpx.Client, client))

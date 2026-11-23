@@ -50,28 +50,6 @@ def claim_tools(backend: Backend) -> list[BaseTool]:
         result = backend.calculate_payout(claim_id, benefit, lines, paid_by_others)
         return result.model_dump_json(indent=2)
 
-    @text_tool
-    def record_decision(
-        claim_id: str,
-        decision: str,
-        payout: str,
-        explanation: str,
-        policy_section: str,
-    ) -> str:
-        """Record the decision (approve, decline or refer) with the payout as a dollar
-        amount such as "420.00" (use "0.00" unless approving), a two or three sentence
-        explanation, and the policy section it relies on."""
-        claim = backend.record_decision(
-            claim_id, decision, payout, explanation, policy_section
-        )
-        return f"Decision recorded. The claim is now {claim.status}."
-
-    @text_tool
-    def pay_claim(claim_id: str, amount: str) -> str:
-        """Pay an approved claim its payout, as a dollar amount such as "420.00"."""
-        backend.pay(claim_id, amount)
-        return "Payment recorded."
-
     return [
         get_claim,
         get_policy,
@@ -79,6 +57,4 @@ def claim_tools(backend: Backend) -> list[BaseTool]:
         get_contents,
         read_section,
         calculate_payout,
-        record_decision,
-        pay_claim,
     ]

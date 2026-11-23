@@ -15,7 +15,9 @@ class FakeAgent:
     def __init__(self):
         self.config: dict = {}
 
-    def stream(self, _input, config, stream_mode):
+    checkpointer = None
+
+    def stream(self, _input, config, stream_mode, durability):
         self.config = config
         return iter(())
 

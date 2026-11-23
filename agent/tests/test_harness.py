@@ -4,7 +4,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import ToolException, tool
 
-from agent.harness import agents
+from agent.harness import agents, graphs
 from agent.harness.agents import build_agent
 from agent.harness.limits import Run
 from agent.harness.model import chat_model
@@ -112,3 +112,17 @@ def test_model_name(monkeypatch):
     assert chat_model().model_name == "deepseek/deepseek-v4.1-flash"
     monkeypatch.setenv("MODEL_NAME", "openrouter/free")
     assert chat_model().model_name == "openrouter/free"
+
+
+def test_the_model_call_limit_stops_the_next_call():
+    assert graphs.count_call(0) == 1
+    assert graphs.count_call(graphs.MODEL_CALL_LIMIT - 1) == graphs.MODEL_CALL_LIMIT
+    with pytest.raises(graphs.CallLimitExceeded):
+        graphs.count_call(graphs.MODEL_CALL_LIMIT)
+
+
+def test_a_call_limit_is_not_retried_but_other_errors_are():
+    retry_on = graphs.retry_policy().retry_on
+    assert callable(retry_on)
+    assert retry_on(TimeoutError("timed out")) is True
+    assert retry_on(graphs.CallLimitExceeded("too many")) is False
