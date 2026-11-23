@@ -20,6 +20,7 @@ claims = Table(
     Column("status", Text, nullable=False),
     Column("data", Text, nullable=False),
     Column("attempts", Integer, nullable=False, server_default="0"),
+    Column("thread_id", Text),
 )
 policies = Table(
     "policies",
@@ -73,4 +74,20 @@ runs = Table(
     Column("todos", Text, nullable=False),
     Column("summary", Text),
     Column("finished", Boolean, nullable=False, server_default=false()),
+)
+sign_offs = Table(
+    "sign_offs",
+    metadata,
+    Column("claim_id", Text, primary_key=True),
+    Column("handler_id", Text, nullable=False),
+    Column("signed_off_by", Text, nullable=False),
+    Column("signed_off_at", Text, nullable=False),
+)
+run_claims = Table(
+    "run_claims",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("run_id", Integer, nullable=False),
+    Column("claim_id", Text, nullable=False),
+    UniqueConstraint("run_id", "claim_id"),
 )

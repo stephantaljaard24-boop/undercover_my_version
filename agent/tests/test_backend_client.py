@@ -21,10 +21,12 @@ def test_it_asks_for_claims(backend):
 def test_it_records_a_decision_and_a_payment(backend):
     backend.start_claim("CLM-1001")
     claim = backend.record_decision("CLM-1001", "approve", "420.00", "Covered.", "3.")
-    assert claim.status == "decided"
+    assert claim.status == "in_progress"
     assert claim.decision is not None
     assert claim.decision.payout == "420.00"
-    assert backend.pay("CLM-1001", "420.00").payment is not None
+    paid = backend.pay("CLM-1001", "420.00")
+    assert paid.payment is not None
+    assert paid.status == "decided"
 
 
 def test_it_records_a_failure_and_a_step(backend, db):

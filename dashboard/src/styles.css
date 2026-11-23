@@ -404,3 +404,40 @@ dd {
     grid-template-columns: 1fr;
   }
 }
+
+.sign-off {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sign-off select {
+  font: inherit;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--page);
+}
+
+.button {
+  font: inherit;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--midnight);
+  background: var(--sea-green);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  color: var(--raspberry);
+}

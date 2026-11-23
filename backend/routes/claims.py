@@ -1,32 +1,22 @@
 """The claims in the queue, and the steps that take one from waiting to decided."""
 
-from fastapi import APIRouter
-from sqlalchemy import Connection
+from fastapi import APIRouter, BackgroundTasks
 
-from backend import payout, rules, store
+from backend import agent_client, payout, rules, store
 from backend.models import (
+    Amount,
     ClaimDetail,
     ClaimSummary,
     Decision,
     Failure,
-    Payment,
+    HandlerChoice,
     PayoutCalculation,
     PayoutRequest,
-    Status,
     Step,
 )
 from backend.routes.dependencies import Db
 
 router = APIRouter()
-
-
-def move(
-    conn: Connection, claim_id: str, source: Status, target: Status
-) -> ClaimDetail:
-    """Move a claim from one status to another, or raise a 409."""
-    rules.require_status(claim_id, store.claim_row(conn, claim_id)["status"], source)
-    store.set_status(conn, claim_id, target)
-    return store.claim_detail(conn, claim_id)
 
 
 @router.get("/claims", operation_id="list_claims")
@@ -43,8 +33,11 @@ def get_claim(claim_id: str, conn: Db) -> ClaimDetail:
 
 @router.post("/claims/{claim_id}/start", operation_id="start_claim")
 def start_claim(claim_id: str, conn: Db) -> ClaimDetail:
-    """Move a waiting claim to in progress."""
-    return move(conn, claim_id, "waiting", "in_progress")
+    """Move a waiting claim to in progress, on a new thread of work."""
+    status = store.claim_row(conn, claim_id)["status"]
+    rules.require_status(claim_id, status, "waiting")
+    store.start_claim(conn, claim_id, rules.new_thread_id(claim_id))
+    return store.claim_detail(conn, claim_id)
 
 
 @router.get("/claims/{claim_id}/steps", operation_id="list_steps")
@@ -77,28 +70,46 @@ def calculate_payout(
 
 @router.post("/claims/{claim_id}/decision", operation_id="record_decision")
 def record_decision(claim_id: str, decision: Decision, conn: Db) -> ClaimDetail:
-    """Record the decision on a claim that is in progress."""
-    status = store.claim_row(conn, claim_id)["status"]
-    rules.require_status(claim_id, status, "in_progress")
-    store.add_decision(conn, claim_id, decision, rules.status_after_decision(decision))
+    """Record the decision on a claim in progress, or accept the same one again."""
+    claim = store.claim_detail(conn, claim_id)
+    if not rules.is_repeat_decision(claim, decision):
+        rules.require_status(claim_id, claim.status, "in_progress")
+        status = rules.status_after_decision(decision)
+        store.add_decision(conn, claim_id, decision, status)
+    return store.claim_detail(conn, claim_id)
+
+
+@router.post("/claims/{claim_id}/sign-off", operation_id="sign_off_claim")
+def sign_off_claim(
+    claim_id: str, choice: HandlerChoice, tasks: BackgroundTasks, conn: Db
+) -> ClaimDetail:
+    """Sign off a payout that is waiting for a handler, and tell the agent."""
+    claim = store.claim_detail(conn, claim_id)
+    if claim.sign_off is not None:
+        return claim
+    handler = rules.signing_handler(choice.handler_id)
+    rules.require_status(claim_id, claim.status, "awaiting_sign_off")
+    store.add_sign_off(conn, claim_id, handler)
+    tasks.add_task(agent_client.notify_signed_off, claim_id)
     return store.claim_detail(conn, claim_id)
 
 
 @router.post("/claims/{claim_id}/payment", operation_id="pay_claim")
-def pay_claim(claim_id: str, payment: Payment, conn: Db) -> ClaimDetail:
-    """Pay the amount of an approved claim's payout, unless it needs sign-off."""
-    detail = store.claim_detail(conn, claim_id)
-    rules.require_payable(claim_id, detail.decision, detail.payment, payment)
-    store.add_payment(conn, claim_id, payment)
+def pay_claim(claim_id: str, payment: Amount, conn: Db) -> ClaimDetail:
+    """Pay an approved claim its payout, unless it needs a sign-off it lacks."""
+    claim = store.claim_detail(conn, claim_id)
+    if rules.payment_is_due(claim, payment.amount):
+        store.add_payment(conn, claim_id, payment)
     return store.claim_detail(conn, claim_id)
 
 
 @router.post("/claims/{claim_id}/fail", operation_id="fail_claim")
 def fail_claim(claim_id: str, failure: Failure, conn: Db) -> ClaimDetail:
     """Record a failed attempt on a claim in progress and send it back to waiting."""
-    row = store.claim_row(conn, claim_id)
-    rules.require_status(claim_id, row["status"], "in_progress")
-    attempts = row["attempts"] + 1
+    claim = store.claim_detail(conn, claim_id)
+    rules.require_status(claim_id, claim.status, "in_progress")
+    rules.require_undecided(claim)
+    attempts = store.claim_row(conn, claim_id)["attempts"] + 1
     status = rules.status_after_failure(attempts)
     store.record_failure(conn, claim_id, attempts, status, failure.reason)
     return store.claim_detail(conn, claim_id)

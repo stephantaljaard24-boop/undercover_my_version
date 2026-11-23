@@ -101,3 +101,17 @@ export async function pay(claimId: string, amount: string): Promise<number> {
   });
   return response.status;
 }
+
+/** Sign a claim off as a handler, as the dashboard does. */
+export async function signOff(
+  claimId: string,
+  handlerId: string,
+): Promise<void> {
+  await post(`/claims/${claimId}/sign-off`, { handler_id: handlerId });
+}
+
+/** The claims the backend has told the stand-in for the agent about. */
+export async function toldToTheAgent(): Promise<string[]> {
+  const response = await fetch("http://127.0.0.1:8003/received");
+  return (await response.json()) as string[];
+}

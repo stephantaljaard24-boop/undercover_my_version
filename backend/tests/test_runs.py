@@ -32,7 +32,7 @@ def test_only_a_claim_in_progress_can_fail(client):
     start(client)
     decide(client, APPROVE)
     assert fail(client).status_code == 409
-    assert status(client) == "decided"
+    assert status(client) == "in_progress"
 
 
 def test_a_claim_is_never_decided_or_paid_twice(client):
@@ -42,7 +42,9 @@ def test_a_claim_is_never_decided_or_paid_twice(client):
     assert decide(client, other).status_code == 409
     assert client.get("/api/claims/CLM-1001").json()["decision"]["payout"] == "420.00"
     assert pay(client, "420.00").status_code == 200
-    assert pay(client, "420.00").status_code == 409
+    assert pay(client, "420.00").status_code == 200
+    assert client.get("/api/claims/CLM-1001").json()["payment"]["amount"] == "420.00"
+    assert pay(client, "300.00").status_code == 409
 
 
 def test_reseeding_clears_the_attempts(client):
@@ -62,6 +64,7 @@ def test_a_new_run_is_empty_and_unfinished(client):
         "todos": [],
         "summary": None,
         "finished": False,
+        "started": [],
     }
     assert client.get("/api/runs/current").json() == run
 
@@ -115,3 +118,13 @@ def test_both_sets_of_instructions(client):
     assert queue.headers["content-type"].startswith("text/plain")
     assert "queue" in queue.text
     assert "UnderCover Agent" in claim.text
+
+
+def test_a_run_remembers_the_claims_it_started_once_each(client):
+    client.post("/api/runs", json={"claim_limit": 5})
+    for claim_id in ["CLM-1003", "CLM-1001", "CLM-1003"]:
+        run = client.post("/api/runs/1/claims", json={"claim_id": claim_id}).json()
+    assert run["started"] == ["CLM-1003", "CLM-1001"]
+    assert client.get("/api/runs/current").json()["started"] == ["CLM-1003", "CLM-1001"]
+    missing = client.post("/api/runs/9/claims", json={"claim_id": "CLM-1001"})
+    assert missing.status_code == 404

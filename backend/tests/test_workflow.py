@@ -53,11 +53,12 @@ def test_steps_come_back_oldest_first(client):
 def test_approve_and_pay_within_the_limit(client):
     start(client)
     decided = decide(client, APPROVE).json()
-    assert decided["status"] == "decided"
+    assert decided["status"] == "in_progress"
     assert decided["decision"]["payout"] == "420.00"
     assert decided["payment"] is None
     paid = pay(client, "420.00").json()
-    assert paid["payment"] == {"amount": "420.00"}
+    assert paid["payment"]["amount"] == "420.00"
+    assert paid["payment"]["signed_off_by"] is None
     assert paid["status"] == "decided"
     summary = client.get("/api/claims").json()[0]
     assert (summary["decision"], summary["payout"]) == ("approve", "420.00")
@@ -82,8 +83,8 @@ def test_payout_over_the_limit_waits_for_sign_off(client):
 def test_payout_of_exactly_the_limit_is_paid(client):
     start(client)
     decided = decide(client, {**APPROVE, "payout": "1000.00"}).json()
-    assert decided["status"] == "decided"
-    assert pay(client, "1000.00").json()["payment"] == {"amount": "1000.00"}
+    assert decided["status"] == "in_progress"
+    assert pay(client, "1000.00").json()["payment"]["amount"] == "1000.00"
 
 
 def test_payout_is_rounded_to_the_cent(client):
@@ -105,19 +106,54 @@ def test_cannot_pay_before_a_decision(client):
     assert pay(client, "420.00").status_code == 409
 
 
-def test_cannot_pay_the_wrong_amount_or_twice(client):
+def test_cannot_pay_the_wrong_amount(client):
     start(client)
     decide(client, APPROVE)
     assert pay(client, "400.00").status_code == 409
     assert pay(client, "420.00").status_code == 200
-    assert pay(client, "420.00").status_code == 409
+    assert pay(client, "400.00").status_code == 409
+
+
+def test_a_repeated_payment_counts_as_done(client):
+    start(client)
+    decide(client, APPROVE)
+    first = pay(client, "420.00").json()
+    assert pay(client, "420.00").json() == first
 
 
 def test_decision_needs_a_claim_in_progress(client):
     assert decide(client, APPROVE).status_code == 409
     start(client)
     assert decide(client, APPROVE).status_code == 200
-    assert decide(client, APPROVE).status_code == 409
+
+
+def test_a_repeated_decision_counts_as_done_and_a_different_one_is_refused(client):
+    start(client)
+    first = decide(client, APPROVE).json()
+    reworded = {**APPROVE, "explanation": "A different way to say it."}
+    assert decide(client, reworded).json() == first
+    assert decide(client, {**APPROVE, "payout": "300.00"}).status_code == 409
+    declined = {**APPROVE, "decision": "decline", "payout": "0"}
+    assert decide(client, declined).status_code == 409
+
+
+def test_a_repeated_decline_counts_as_done(client):
+    start(client)
+    decline = {**APPROVE, "decision": "decline", "payout": "0.00"}
+    first = decide(client, decline).json()
+    assert first["status"] == "decided"
+    assert decide(client, decline).json() == first
+
+
+def test_a_claim_gets_a_new_thread_each_time_it_is_started(client):
+    first = start(client).json()["thread_id"]
+    assert first.startswith("CLM-1001-")
+    client.post("/api/claims/CLM-1001/fail", json={"reason": "The model timed out"})
+    second = start(client).json()["thread_id"]
+    assert second.startswith("CLM-1001-")
+    assert second != first
+    assert client.get("/api/claims/CLM-1001").json()["thread_id"] == second
+    assert client.get("/api/claims/CLM-1002").json()["thread_id"] is None
 
 
 @pytest.mark.parametrize(

@@ -6,16 +6,19 @@ import type {
   Customer,
   Policy,
   SectionRead,
+  SignOff,
   Step,
 } from "./api";
 import {
   DOCUMENT_LABELS,
   formatDate,
+  formatDateTime,
   formatType,
   STATUS_LABELS,
   VERDICT_LABELS,
 } from "./labels";
 import { formatCents } from "./money";
+import { SignOffPanel } from "./SignOffPanel";
 import { usePolling } from "./usePolling";
 
 const WORKING_POLL_MS = 2000;
@@ -29,29 +32,60 @@ const STEP_LABELS: Record<Step["kind"], string> = {
 };
 
 /**
- * Keep watching a claim until the agent has decided it and given its final
- * reply. The agent pays and replies after it records its decision.
+ * Keep watching a claim until it is decided or left for a handler. The agent
+ * pays an approval after it records the decision, and after a sign-off.
  */
-function pollDelay({ claim, steps }: ClaimView): number | null {
-  if (claim.status === "needs_handler") return null;
-  if (claim.status === "waiting") return WAITING_POLL_MS;
-  const finished = claim.decision !== null && steps.at(-1)?.kind === "reply";
-  return finished ? null : WORKING_POLL_MS;
+function pollDelay({ claim }: ClaimView): number | null {
+  if (claim.status === "decided" || claim.status === "needs_handler")
+    return null;
+  return claim.status === "in_progress" ? WORKING_POLL_MS : WAITING_POLL_MS;
 }
 
-function PaymentLine({ claim }: Readonly<{ claim: ClaimDetail }>) {
+function SignedOffLine({ signOff }: Readonly<{ signOff: SignOff }>) {
+  return (
+    <p className="muted small">
+      Signed off by {signOff.signed_off_by} on{" "}
+      {formatDateTime(signOff.signed_off_at)}.
+    </p>
+  );
+}
+
+function PaymentLine({
+  claim,
+  onSignedOff,
+}: Readonly<{ claim: ClaimDetail; onSignedOff: () => void }>) {
   if (claim.decision?.decision !== "approve") return null;
-  if (claim.payment) return <p>Paid {formatCents(claim.payment.amount)}.</p>;
+  const signedOff = claim.sign_off && (
+    <SignedOffLine signOff={claim.sign_off} />
+  );
+  if (claim.payment)
+    return (
+      <>
+        <p>Paid {formatCents(claim.payment.amount)}.</p>
+        {signedOff}
+      </>
+    );
   if (claim.status === "awaiting_sign_off")
     return (
-      <p className="blocked">
-        Payment blocked: waiting for a handler&apos;s sign-off.
-      </p>
+      <>
+        <p className="blocked">
+          Payment blocked: waiting for a handler&apos;s sign-off.
+        </p>
+        <SignOffPanel claimId={claim.claim_id} onSignedOff={onSignedOff} />
+      </>
     );
-  return <p>Not paid yet.</p>;
+  return (
+    <>
+      <p>Not paid yet.</p>
+      {signedOff}
+    </>
+  );
 }
 
-function DecisionPanel({ claim }: Readonly<{ claim: ClaimDetail }>) {
+function DecisionPanel({
+  claim,
+  onSignedOff,
+}: Readonly<{ claim: ClaimDetail; onSignedOff: () => void }>) {
   const { decision } = claim;
   return (
     <section className="panel card">
@@ -72,7 +106,7 @@ function DecisionPanel({ claim }: Readonly<{ claim: ClaimDetail }>) {
           <p className="muted small">
             Policy section: {decision.policy_section}
           </p>
-          <PaymentLine claim={claim} />
+          <PaymentLine claim={claim} onSignedOff={onSignedOff} />
         </>
       ) : (
         <p className="muted">
@@ -226,7 +260,7 @@ function ClaimPanel({ claim }: Readonly<{ claim: ClaimDetail }>) {
 
 export function ClaimPage({ claimId }: Readonly<{ claimId: string }>) {
   const load = useCallback(() => fetchClaimView(claimId), [claimId]);
-  const { data, failed } = usePolling(load, pollDelay);
+  const { data, failed, reload } = usePolling(load, pollDelay);
 
   if (!data) {
     return (
@@ -252,7 +286,7 @@ export function ClaimPage({ claimId }: Readonly<{ claimId: string }>) {
       <div className="columns">
         <ClaimPanel claim={claim} />
         <div className="side">
-          <DecisionPanel claim={claim} />
+          <DecisionPanel claim={claim} onSignedOff={reload} />
           <ReadsPanel reads={reads} />
           <PolicyPanel policy={policy} />
           <CustomerPanel customer={customer} />

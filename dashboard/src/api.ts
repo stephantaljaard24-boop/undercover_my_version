@@ -45,6 +45,25 @@ export interface Decision {
   policy_section: string;
 }
 
+export interface SignOff {
+  handler_id: string;
+  signed_off_by: string;
+  signed_off_at: string;
+}
+
+export interface Payment {
+  amount: number;
+  signed_off_by: string | null;
+  signed_off_at: string | null;
+}
+
+export interface Handler {
+  handler_id: string;
+  name: string;
+  role: string;
+  can_approve_over_limit: boolean;
+}
+
 export interface ClaimDetail {
   claim_id: string;
   policy_id: string;
@@ -60,7 +79,8 @@ export interface ClaimDetail {
   documents: Document[];
   status: Status;
   decision: Decision | null;
-  payment: { amount: number } | null;
+  sign_off: SignOff | null;
+  payment: Payment | null;
 }
 
 export interface Policy {
@@ -152,7 +172,7 @@ type ClaimDetailWire = Omit<
   amount_claimed: string;
   items: Wire<Item, "amount">[];
   decision: Wire<Decision, "payout"> | null;
-  payment: { amount: string } | null;
+  payment: Wire<Payment, "amount"> | null;
 };
 
 type PolicyWire = Omit<Policy, "trip"> & {
@@ -195,7 +215,10 @@ async function fetchClaim(claimId: string): Promise<ClaimDetail> {
       ...claim.decision,
       payout: toCents(claim.decision.payout),
     },
-    payment: claim.payment && { amount: toCents(claim.payment.amount) },
+    payment: claim.payment && {
+      ...claim.payment,
+      amount: toCents(claim.payment.amount),
+    },
   };
 }
 
@@ -243,6 +266,24 @@ export async function fetchQueueView(): Promise<QueueView> {
     get<Run | null>("/api/runs/current"),
   ]);
   return { claims, run };
+}
+
+export async function fetchHandlers(): Promise<Handler[]> {
+  return get<Handler[]>("/api/handlers");
+}
+
+/** Sign off the payout on a claim as a handler. */
+export async function signOff(
+  claimId: string,
+  handlerId: string,
+): Promise<void> {
+  const path = `/api/claims/${claimId}/sign-off`;
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ handler_id: handlerId }),
+  });
+  if (!response.ok) throw new Error(`${path} gave ${String(response.status)}`);
 }
 
 export async function fetchInstructions(): Promise<Instructions> {

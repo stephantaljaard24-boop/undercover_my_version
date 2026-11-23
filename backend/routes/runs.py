@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from backend import store
-from backend.models import ClaimLimit, Run, Summary, TodoList
+from backend.models import ClaimLimit, Run, RunClaim, Summary, TodoList
 from backend.routes.dependencies import Db
 
 router = APIRouter()
@@ -31,3 +31,9 @@ def set_todos(run_id: int, todo_list: TodoList, conn: Db) -> Run:
 def finish_run(run_id: int, summary: Summary, conn: Db) -> Run:
     """Finish the run with a summary for the handlers."""
     return store.finish_run(conn, run_id, summary.summary)
+
+
+@router.post("/runs/{run_id}/claims", operation_id="add_run_claim")
+def add_run_claim(run_id: int, claim: RunClaim, conn: Db) -> Run:
+    """Record that the run has started a claim."""
+    return store.add_run_claim(conn, run_id, claim.claim_id)

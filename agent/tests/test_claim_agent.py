@@ -94,7 +94,7 @@ def test_approve_and_pay(backend, db):
     ]
     assert steps[0].text == 'get_claim {"claim_id": "CLM-1001"}'
     assert steps[1].text.endswith("...")
-    assert steps[3].text == "Decision recorded. The claim is now decided."
+    assert steps[3].text == "Decision recorded. The claim is now in_progress."
     assert steps[-1].text == "Approved for $420.00."
 
 

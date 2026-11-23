@@ -60,16 +60,14 @@ test("a decided and paid claim shows its decision and payment", async ({
   await expect(page.getByText("Paid $420.00.")).toBeVisible();
 });
 
-test("the payment and the reply show up after the decision", async ({
-  page,
-}) => {
+test("the payment shows up after the decision", async ({ page }) => {
   await startClaim("CLM-1014");
   await decide("CLM-1014", "approve", "420.00");
   await page.goto("/#/claims/CLM-1014");
   await expect(page.getByText("Not paid yet.")).toBeVisible();
 
-  expect(await pay("CLM-1014", "420.00")).toBe(200);
   await addStep("CLM-1014", "reply", "A made-up reply");
+  expect(await pay("CLM-1014", "420.00")).toBe(200);
   await expect(page.getByText("Paid $420.00.")).toBeVisible();
   await expect(page.getByText("A made-up reply")).toBeVisible();
 });

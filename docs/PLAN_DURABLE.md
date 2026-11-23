@@ -157,18 +157,18 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 
 **Success criteria**
 
-- [ ] `uv run pytest -q backend` passes, with tests (a conftest fixture points the notification at a recorder, so no test reaches a real service) that:
-  - [ ] A decision within the limit leaves the claim `in_progress` until `pay_claim`, which makes it `decided`; a decline and a referral are `decided` at once.
-  - [ ] A payout of $1,500.00 is `awaiting_sign_off`; paying it gives 403 and records nothing; signing off moves it to `in_progress` and records who and when; paying it then works and the payment shows the handler and the time.
-  - [ ] A sign-off by an unknown handler, a handler who can't approve over the limit, or on a claim that isn't waiting for one is refused. A second sign-off returns the claim and keeps the first.
-  - [ ] The sign-off notifies the agent exactly once, after the response, with the claim id; an unreachable agent still leaves the sign-off saved and the response 200.
-  - [ ] Repeating the same decision returns the claim with one decision stored; a different verdict or payout gets 409. Paying twice records one payment; paying a different amount gets 409.
-  - [ ] A claim with a decision can't be failed; a claim without one can, and a fresh `start_claim` gives a new `thread_id` while a restart does not change the old one.
-  - [ ] `started` lists the claims added to a run, in order.
-- [ ] `backend/tests/openapi.json` is saved; the diff shows the new operations and the changed shapes, and each new operation has an `operation_id`, a one-line docstring and no optional inputs.
-- [ ] `vitest` passes with at least 80% statement coverage, with tests for the sign-off panel (the handlers, the button, the call it makes), the payment line with and without a sign-off, and the polling rule.
-- [ ] `e2e/signoff.spec.ts` passes: a claim put into `awaiting_sign_off` through the API shows the panel; choosing a handler and clicking "Sign off" shows "In progress" and the stand-in on port 8003 has received that claim id; paying the claim through the API then shows "Paid $1,500.00" with the handler's name.
-- [ ] `npm run check` passes.
+- [x] `uv run pytest -q backend` passes, with tests (a conftest fixture points the notification at a recorder, so no test reaches a real service) that:
+  - [x] A decision within the limit leaves the claim `in_progress` until `pay_claim`, which makes it `decided`; a decline and a referral are `decided` at once.
+  - [x] A payout of $1,500.00 is `awaiting_sign_off`; paying it gives 403 and records nothing; signing off moves it to `in_progress` and records who and when; paying it then works and the payment shows the handler and the time.
+  - [x] A sign-off by an unknown handler, a handler who can't approve over the limit, or on a claim that isn't waiting for one is refused. A second sign-off returns the claim and keeps the first.
+  - [x] The sign-off notifies the agent exactly once, after the response, with the claim id; an unreachable agent still leaves the sign-off saved and the response 200.
+  - [x] Repeating the same decision returns the claim with one decision stored; a different verdict or payout gets 409. Paying twice records one payment; paying a different amount gets 409.
+  - [x] A claim with a decision can't be failed; a claim without one can, and a fresh `start_claim` gives a new `thread_id` while a restart does not change the old one.
+  - [x] `started` lists the claims added to a run, in order.
+- [x] `backend/tests/openapi.json` is saved; the diff shows the new operations and the changed shapes, and each new operation has an `operation_id`, a one-line docstring and no optional inputs.
+- [x] `vitest` passes with at least 80% statement coverage, with tests for the sign-off panel (the handlers, the button, the call it makes), the payment line with and without a sign-off, and the polling rule.
+- [x] `e2e/signoff.spec.ts` passes: a claim put into `awaiting_sign_off` through the API shows the panel; choosing a handler and clicking "Sign off" shows "In progress" and the stand-in on port 8003 has received that claim id; paying the claim through the API then shows "Paid $1,500.00" with the handler's name.
+- [x] `npm run check` passes.
 
 ## Phase 4: the claim graph and its saved progress
 

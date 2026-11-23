@@ -1,6 +1,27 @@
 {
   "components": {
     "schemas": {
+      "Amount": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "Amount",
+        "type": "object"
+      },
       "CalcStep": {
         "properties": {
           "amount": {
@@ -73,7 +94,7 @@
           "payment": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Payment-Output"
+                "$ref": "#/components/schemas/Payment"
               },
               {
                 "type": "null"
@@ -83,6 +104,16 @@
           "policy_id": {
             "title": "Policy Id",
             "type": "string"
+          },
+          "sign_off": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignOff"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "enum": [
@@ -107,6 +138,17 @@
           "summary": {
             "title": "Summary",
             "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
           }
         },
         "required": [
@@ -123,7 +165,9 @@
           "amount_claimed",
           "documents",
           "status",
+          "thread_id",
           "decision",
+          "sign_off",
           "payment"
         ],
         "title": "ClaimDetail",
@@ -383,6 +427,47 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "Handler": {
+        "properties": {
+          "can_approve_over_limit": {
+            "title": "Can Approve Over Limit",
+            "type": "boolean"
+          },
+          "handler_id": {
+            "title": "Handler Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handler_id",
+          "name",
+          "role",
+          "can_approve_over_limit"
+        ],
+        "title": "Handler",
+        "type": "object"
+      },
+      "HandlerChoice": {
+        "properties": {
+          "handler_id": {
+            "title": "Handler Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handler_id"
+        ],
+        "title": "HandlerChoice",
+        "type": "object"
+      },
       "Item": {
         "properties": {
           "amount": {
@@ -406,32 +491,34 @@
         "title": "Item",
         "type": "object"
       },
-      "Payment-Input": {
-        "properties": {
-          "amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Amount"
-          }
-        },
-        "required": [
-          "amount"
-        ],
-        "title": "Payment",
-        "type": "object"
-      },
-      "Payment-Output": {
+      "Payment": {
         "properties": {
           "amount": {
             "title": "Amount",
             "type": "string"
+          },
+          "signed_off_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Off At"
+          },
+          "signed_off_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Off By"
           }
         },
         "required": [
@@ -692,6 +779,13 @@
             "title": "Run Id",
             "type": "integer"
           },
+          "started": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Started",
+            "type": "array"
+          },
           "summary": {
             "anyOf": [
               {
@@ -716,9 +810,23 @@
           "claim_limit",
           "todos",
           "summary",
-          "finished"
+          "finished",
+          "started"
         ],
         "title": "Run",
+        "type": "object"
+      },
+      "RunClaim": {
+        "properties": {
+          "claim_id": {
+            "title": "Claim Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id"
+        ],
+        "title": "RunClaim",
         "type": "object"
       },
       "SectionRead": {
@@ -760,6 +868,30 @@
           "section"
         ],
         "title": "SectionRef",
+        "type": "object"
+      },
+      "SignOff": {
+        "properties": {
+          "handler_id": {
+            "title": "Handler Id",
+            "type": "string"
+          },
+          "signed_off_at": {
+            "format": "date-time",
+            "title": "Signed Off At",
+            "type": "string"
+          },
+          "signed_off_by": {
+            "title": "Signed Off By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handler_id",
+          "signed_off_by",
+          "signed_off_at"
+        ],
+        "title": "SignOff",
         "type": "object"
       },
       "Step": {
@@ -984,7 +1116,7 @@
     },
     "/api/claims/{claim_id}/decision": {
       "post": {
-        "description": "Record the decision on a claim that is in progress.",
+        "description": "Record the decision on a claim in progress, or accept the same one again.",
         "operationId": "record_decision",
         "parameters": [
           {
@@ -1084,7 +1216,7 @@
     },
     "/api/claims/{claim_id}/payment": {
       "post": {
-        "description": "Pay the amount of an approved claim's payout, unless it needs sign-off.",
+        "description": "Pay an approved claim its payout, unless it needs a sign-off it lacks.",
         "operationId": "pay_claim",
         "parameters": [
           {
@@ -1101,7 +1233,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Payment-Input"
+                "$ref": "#/components/schemas/Amount"
               }
             }
           },
@@ -1274,9 +1406,59 @@
         "summary": "Read Section"
       }
     },
+    "/api/claims/{claim_id}/sign-off": {
+      "post": {
+        "description": "Sign off a payout that is waiting for a handler, and tell the agent.",
+        "operationId": "sign_off_claim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandlerChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sign Off Claim"
+      }
+    },
     "/api/claims/{claim_id}/start": {
       "post": {
-        "description": "Move a waiting claim to in progress.",
+        "description": "Move a waiting claim to in progress, on a new thread of work.",
         "operationId": "start_claim",
         "parameters": [
           {
@@ -1486,6 +1668,29 @@
         "summary": "Get Contents"
       }
     },
+    "/api/handlers": {
+      "get": {
+        "description": "List the handlers, who may sign off a payout over the limit.",
+        "operationId": "list_handlers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Handler"
+                  },
+                  "title": "Response List Handlers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Handlers"
+      }
+    },
     "/api/health": {
       "get": {
         "description": "Check that the backend is running.",
@@ -1651,6 +1856,56 @@
           }
         },
         "summary": "Get Current Run"
+      }
+    },
+    "/api/runs/{run_id}/claims": {
+      "post": {
+        "description": "Record that the run has started a claim.",
+        "operationId": "add_run_claim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Run Claim"
       }
     },
     "/api/runs/{run_id}/finish": {

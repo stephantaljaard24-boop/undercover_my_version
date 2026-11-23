@@ -1,4 +1,10 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ClaimPage } from "./ClaimPage";
 
@@ -26,6 +32,7 @@ const claim = {
   ],
   status: "waiting",
   decision: null,
+  sign_off: null,
   payment: null,
 };
 
@@ -66,6 +73,33 @@ const decision = {
   policy_section: "3. Trip Delay",
 };
 
+const handlers = [
+  {
+    handler_id: "HND-01",
+    name: "Dana Whitfield",
+    role: "Senior Claims Handler",
+    can_approve_over_limit: true,
+  },
+  {
+    handler_id: "HND-02",
+    name: "Marcus Oyelaran",
+    role: "Claims Handler",
+    can_approve_over_limit: true,
+  },
+  {
+    handler_id: "HND-09",
+    name: "Sam Trainee",
+    role: "Trainee",
+    can_approve_over_limit: false,
+  },
+];
+
+const signOff = {
+  handler_id: "HND-01",
+  signed_off_by: "Dana Whitfield",
+  signed_off_at: "2026-11-20T14:03:00Z",
+};
+
 function backend(
   overrides: object,
   steps: object[] = [],
@@ -74,7 +108,8 @@ function backend(
 ) {
   return vi.fn((url: string) => {
     let body: unknown = { ...claim, ...overrides };
-    if (url.endsWith("/steps")) body = steps;
+    if (url === "/api/handlers") body = handlers;
+    else if (url.endsWith("/steps")) body = steps;
     else if (url.endsWith("/reads")) body = reads;
     else if (url.startsWith("/api/policies/")) body = policy;
     else if (url.startsWith("/api/customers/"))
@@ -142,7 +177,11 @@ it("shows the steps of a claim in progress and keeps watching it", async () => {
 
 it("shows a decided and paid claim, and stops watching it", async () => {
   const fetchMock = backend(
-    { status: "decided", decision, payment: { amount: "340.50" } },
+    {
+      status: "decided",
+      decision,
+      payment: { amount: "340.50", signed_off_by: null, signed_off_at: null },
+    },
     [{ kind: "reply", text: "Approved." }],
     false,
   );
@@ -158,22 +197,22 @@ it("shows a decided and paid claim, and stops watching it", async () => {
   expect(fetchMock.mock.calls).toHaveLength(calls);
 });
 
-it("keeps watching a decided claim until the agent has replied", async () => {
-  let replied = false;
-  const working = backend({ status: "decided", decision }, [
-    { kind: "tool_result", text: "Decision recorded." },
+it("keeps watching an approved claim until it is paid", async () => {
+  let paid = false;
+  const working = backend({ status: "in_progress", decision }, [
+    { kind: "reply", text: "Approved." },
   ]);
-  const finished = backend(
-    { status: "decided", decision, payment: { amount: "340.50" } },
-    [{ kind: "reply", text: "Approved." }],
-  );
-  const fetchMock = vi.fn((url: string) => (replied ? finished : working)(url));
+  const finished = backend({
+    status: "decided",
+    decision,
+    payment: { amount: "340.50", signed_off_by: null, signed_off_at: null },
+  });
+  const fetchMock = vi.fn((url: string) => (paid ? finished : working)(url));
   await show(fetchMock);
   expect(screen.getByText("Not paid yet.")).toBeDefined();
-  replied = true;
+  paid = true;
   await act(() => vi.advanceTimersByTimeAsync(2000));
   expect(screen.getByText("Paid $340.50.")).toBeDefined();
-  expect(screen.getByText("Approved.")).toBeDefined();
   const calls = fetchMock.mock.calls.length;
   await act(() => vi.advanceTimersByTimeAsync(10000));
   expect(fetchMock.mock.calls).toHaveLength(calls);
@@ -194,8 +233,82 @@ it("shows a payment blocked until a handler signs off", async () => {
 });
 
 it("shows an approved claim that is not paid yet", async () => {
-  await show(backend({ status: "decided", decision }));
+  await show(backend({ status: "in_progress", decision }));
   expect(screen.getByText("Not paid yet.")).toBeDefined();
+  expect(screen.queryByText(/Signed off by/)).toBeNull();
+});
+
+it("shows who signed off, before and after the payment", async () => {
+  const signed = { status: "in_progress", decision, sign_off: signOff };
+  await show(backend(signed));
+  expect(screen.getByText("Not paid yet.")).toBeDefined();
+  expect(
+    screen.getByText(/Signed off by Dana Whitfield on Nov 20, 2026/),
+  ).toBeDefined();
+  cleanup();
+  const payment = {
+    amount: "340.50",
+    signed_off_by: "Dana Whitfield",
+    signed_off_at: "2026-11-20T14:03:00Z",
+  };
+  await show(backend({ ...signed, status: "decided", payment }));
+  expect(screen.getByText("Paid $340.50.")).toBeDefined();
+  expect(screen.getByText(/Signed off by Dana Whitfield on/)).toBeDefined();
+});
+
+it("lets a handler sign off a payment that is blocked", async () => {
+  let signedOff = false;
+  const waiting = backend({
+    status: "awaiting_sign_off",
+    decision: { ...decision, payout: "1500.00" },
+  });
+  const signed = backend({
+    status: "in_progress",
+    decision: { ...decision, payout: "1500.00" },
+    sign_off: signOff,
+  });
+  const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+    if (init?.method === "POST") {
+      signedOff = true;
+      return Promise.resolve(Response.json({}));
+    }
+    return (signedOff ? signed : waiting)(url);
+  });
+  await show(fetchMock);
+  const choices = screen
+    .getAllByRole("option")
+    .map((option) => option.textContent);
+  expect(choices).toEqual(["Dana Whitfield", "Marcus Oyelaran"]);
+  fireEvent.change(screen.getByLabelText("Sign off as"), {
+    target: { value: "HND-02" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  const posts = fetchMock.mock.calls.filter(
+    ([, init]) => init?.method === "POST",
+  );
+  expect(posts).toHaveLength(1);
+  expect(posts[0]?.[0]).toBe("/api/claims/CLM-1001/sign-off");
+  expect(posts[0]?.[1]?.body).toBe(JSON.stringify({ handler_id: "HND-02" }));
+  expect(screen.getByText("In progress")).toBeDefined();
+  expect(screen.queryByRole("button", { name: "Sign off" })).toBeNull();
+  expect(screen.getByText(/Signed off by Dana Whitfield/)).toBeDefined();
+});
+
+it("says so when a sign-off cannot be saved", async () => {
+  const waiting = backend({
+    status: "awaiting_sign_off",
+    decision: { ...decision, payout: "1500.00" },
+  });
+  const fetchMock = vi.fn((url: string, init?: RequestInit) =>
+    init?.method === "POST"
+      ? Promise.resolve(new Response("", { status: 409 }))
+      : waiting(url),
+  );
+  await show(fetchMock);
+  fireEvent.click(screen.getByRole("button", { name: "Sign off" }));
+  await act(() => vi.advanceTimersByTimeAsync(0));
+  expect(screen.getByText("The sign-off could not be saved.")).toBeDefined();
 });
 
 it("shows a declined claim with no payment", async () => {

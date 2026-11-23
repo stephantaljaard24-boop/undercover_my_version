@@ -41,3 +41,11 @@ export function formatDate(date: string): string {
     year: "numeric",
   });
 }
+
+/** Show "2026-11-20T14:03:00Z" as "Nov 20, 2026, 2:03 PM" in the viewer's time. */
+export function formatDateTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}

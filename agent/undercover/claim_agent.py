@@ -63,10 +63,10 @@ def work_claim(
     except Exception as error:
         problem = f"{type(error).__name__}: {error}"
     claim = backend.claim(claim_id)
-    if claim.status == "in_progress":
+    if claim.status == "in_progress" and claim.decision is None:
         problem = problem or "the agent ended without a decision"
         claim = backend.fail_claim(claim_id, problem)
-    elif problem and claim.status == "decided" and claim.payment is None:
+    elif problem and claim.status == "in_progress" and claim.payment is None:
         if claim.decision and claim.decision.decision == "approve":
             claim = backend.pay(claim_id, claim.decision.payout)
     return f"{claim_id}: {describe(claim, problem)}"

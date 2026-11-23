@@ -3,7 +3,8 @@
 from fastapi import APIRouter
 
 from backend import store
-from backend.models import Customer, Policy
+from backend.data import load_json
+from backend.models import Customer, Handler, Policy
 from backend.routes.dependencies import Db
 
 router = APIRouter()
@@ -19,3 +20,9 @@ def get_policy(policy_id: str, conn: Db) -> Policy:
 def get_customer(customer_id: str, conn: Db) -> Customer:
     """Get a customer with their earlier claims."""
     return store.customer(conn, customer_id)
+
+
+@router.get("/handlers", operation_id="list_handlers")
+def list_handlers() -> list[Handler]:
+    """List the handlers, who may sign off a payout over the limit."""
+    return [Handler(**handler) for handler in load_json("handlers.json")]

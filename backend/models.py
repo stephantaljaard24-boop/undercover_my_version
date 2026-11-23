@@ -1,6 +1,6 @@
 """The shapes of what the API takes and returns. Amounts are exact dollars."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Literal, Self
 
@@ -64,13 +64,38 @@ class Decision(BaseModel):
         return self
 
 
+class Amount(BaseModel):
+    amount: Money
+
+
+class SignOff(BaseModel):
+    handler_id: str
+    signed_off_by: str
+    signed_off_at: datetime
+
+
 class Payment(BaseModel):
     amount: Money
+    signed_off_by: str | None = None
+    signed_off_at: datetime | None = None
+
+
+class Handler(BaseModel):
+    handler_id: str
+    name: str
+    role: str
+    can_approve_over_limit: bool
+
+
+class HandlerChoice(BaseModel):
+    handler_id: str
 
 
 class ClaimDetail(Claim):
     status: Status
+    thread_id: str | None
     decision: Decision | None
+    sign_off: SignOff | None
     payment: Payment | None
 
 
@@ -193,6 +218,10 @@ class ClaimLimit(BaseModel):
     claim_limit: Annotated[int, Field(ge=1)]
 
 
+class RunClaim(BaseModel):
+    claim_id: str
+
+
 class Summary(BaseModel):
     summary: Annotated[str, Field(min_length=1)]
 
@@ -203,3 +232,4 @@ class Run(BaseModel):
     todos: list[Todo]
     summary: str | None
     finished: bool
+    started: list[str]
