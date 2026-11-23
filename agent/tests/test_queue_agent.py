@@ -2,10 +2,11 @@ import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
 from agent.__main__ import main as cli
-from agent.tests.stubs import ByClaimModel, call, decision_call, script
+from agent.tests.stubs import ByClaimModel, Killed, call, decision_call, script
 from agent.undercover import queue_agent
 from agent.undercover.claim_agent import ClaimAgent
 from backend import store
+from backend.db import engine
 
 DECLINE = {
     "decision": "decline",
@@ -15,11 +16,16 @@ DECLINE = {
 }
 
 
+def leave_decided(*claim_ids):
+    with engine().connect() as conn:
+        for claim_id in claim_ids:
+            store.set_status(conn, claim_id, "decided")
+
+
 @pytest.fixture(autouse=True)
 def two_waiting(backend):
-    """Leave CLM-1001 and CLM-1002 waiting and put the other claims in progress."""
-    for number in range(1003, 1026):
-        backend.start_claim(f"CLM-{number}")
+    """Leave CLM-1001 and CLM-1002 waiting and the other claims decided."""
+    leave_decided(*[f"CLM-{number}" for number in range(1003, 1026)])
 
 
 def decide(_claim_id):
@@ -276,11 +282,90 @@ def test_the_system_prompt_is_the_queue_instructions(backend, make_claims):
 
 
 def test_nothing_waiting_means_no_run(backend, db, capsys, make_claims):
-    for number in (1001, 1002):
-        backend.start_claim(f"CLM-{number}")
+    leave_decided("CLM-1001", "CLM-1002")
     assert queue_agent.run_queue(backend, make_claims(), llm=script()) == ""
     assert capsys.readouterr().out == "No claims are waiting.\n"
     assert store.current_run(db) is None
+
+
+def stop_claim(make_claims, claim_id):
+    """Work a claim until the process is stopped partway."""
+    llm = script(call("get_claim", claim_id=claim_id), Killed())
+    with pytest.raises(Killed):
+        make_claims(llm).work_claim(claim_id)
+
+
+def test_a_run_carries_on_a_stopped_claim_before_it_starts_new_ones(
+    backend, db, make_claims, capsys
+):
+    stop_claim(make_claims, "CLM-1001")
+    thread = backend.claim("CLM-1001").thread_id
+    llm = script(
+        call("work_claim", claim_id="CLM-1002"),
+        call("finish_run", summary="Both decided."),
+        AIMessage(content="Finished."),
+    )
+    helpers = ByClaimModel(
+        scripts={
+            "CLM-1001": [AIMessage(content="Not covered."), decision_call(**DECLINE)],
+            "CLM-1002": decide("CLM-1002"),
+        }
+    )
+    queue_agent.run_queue(backend, make_claims(helpers), llm=llm)
+    assert capsys.readouterr().out.splitlines()[:2] == [
+        "CLM-1001: decline",
+        "CLM-1002: decline",
+    ]
+    assert backend.claim("CLM-1001").thread_id == thread
+    assert store.claim_row(db, "CLM-1001")["attempts"] == 0
+    run = store.current_run(db)
+    assert run is not None
+    assert run.claim_limit == 1
+    assert run.started == ["CLM-1002"]
+
+
+def test_a_stopped_run_is_finished_by_the_next_run(backend, db, make_claims):
+    first = script(
+        todos(("CLM-1001", "in_progress"), ("CLM-1002", "todo")),
+        call("work_claim", claim_id="CLM-1001"),
+        Killed(),
+    )
+    helpers = ByClaimModel(scripts={"CLM-1001": decide("CLM-1001")})
+    with pytest.raises(Killed):
+        queue_agent.run_queue(backend, make_claims(helpers), limit=1, llm=first)
+    stopped = store.current_run(db)
+    assert stopped is not None
+    assert stopped.finished is False
+    assert stopped.started == ["CLM-1001"]
+
+    second = script(
+        call("work_claim", claim_id="CLM-1002"),
+        call("finish_run", summary="Carried on."),
+        AIMessage(content="Finished."),
+    )
+    queue_agent.run_queue(backend, make_claims(), limit=5, llm=second)
+    prompt = second.seen[0][1].content
+    assert "Carry on a run that stopped" in prompt
+    assert "up to 1 claims in all" in prompt
+    assert "Already started: CLM-1001." in prompt
+    assert "- CLM-1002: todo" in prompt
+    assert "cap of 1 claims is used up" in tool_texts(second)[0]
+    run = store.current_run(db)
+    assert run is not None
+    assert run.run_id == stopped.run_id
+    assert (run.finished, run.summary) == (True, "Carried on.")
+    assert status(backend, "CLM-1002") == "waiting"
+
+
+def test_a_finished_run_is_not_carried_on(backend, db, make_claims):
+    llm = script(call("finish_run", summary="Nothing."), AIMessage(content="Done."))
+    queue_agent.run_queue(backend, make_claims(), limit=1, llm=llm)
+    queue_agent.run_queue(
+        backend, make_claims(), limit=2, llm=script(AIMessage(content="Ok."))
+    )
+    run = store.current_run(db)
+    assert run is not None
+    assert (run.run_id, run.claim_limit) == (2, 2)
 
 
 def test_command_line(monkeypatch, capsys):

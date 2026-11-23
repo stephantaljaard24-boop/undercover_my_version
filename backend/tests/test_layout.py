@@ -49,3 +49,13 @@ def test_files_are_named_for_their_job_and_stay_small():
         p.name for p in SOURCES if len(p.read_text("utf-8").splitlines()) > MAX_LINES
     ]
     assert long == []
+
+
+def test_the_agents_address_is_written_only_in_its_client():
+    named = [
+        p.name
+        for p in SOURCES
+        if "UNDERCOVER_AGENT" in p.read_text(encoding="utf-8")
+        or "/resume" in p.read_text(encoding="utf-8")
+    ]
+    assert named == ["agent_client.py"]

@@ -14,6 +14,8 @@ BACKEND_PATH = re.compile(
     r"/api/(claims|policies|customers|documents|instructions|runs)"
 )
 VAGUE_NAMES = {"main.py", "utils.py", "helpers.py", "runner.py"}
+ENTRY_POINTS = ("agent.__main__", "agent.service")
+SERVICE_PATHS = {"/api/health", "/api/claims/{claim_id}/resume"}
 
 
 def imports(path: Path) -> set[str]:
@@ -38,16 +40,16 @@ def importing(files: list[Path], *prefixes: str) -> list[str]:
 
 
 def test_the_harness_imports_nothing_from_the_product():
-    wrong = importing(HARNESS, "agent.undercover", "agent.__main__", "backend")
+    wrong = importing(HARNESS, "agent.undercover", *ENTRY_POINTS, "backend")
     assert wrong == []
 
 
-def test_the_product_imports_neither_the_entry_point_nor_the_backend_server():
-    assert importing(UNDERCOVER, "agent.__main__", "backend") == []
+def test_the_product_imports_neither_an_entry_point_nor_the_backend_server():
+    assert importing(UNDERCOVER, *ENTRY_POINTS, "backend") == []
 
 
-def test_nothing_imports_the_entry_point():
-    assert importing(SOURCES, "agent.__main__") == []
+def test_nothing_imports_an_entry_point():
+    assert importing(SOURCES, *ENTRY_POINTS) == []
 
 
 def test_files_are_named_for_their_job_and_stay_small():
@@ -62,6 +64,11 @@ def test_the_backend_is_named_only_in_its_client():
     named = [
         p.name for p in FILES if BACKEND_PATH.search(p.read_text(encoding="utf-8"))
     ]
-    assert named == ["backend.py"]
+    assert sorted(named) == ["backend.py", "service.py"]
     uses_httpx = [p.name for p in FILES if "httpx" in p.read_text(encoding="utf-8")]
     assert sorted(uses_httpx) == ["backend.py", "stubs.py"]
+
+
+def test_the_service_names_only_its_own_paths():
+    text = (AGENT / "service.py").read_text(encoding="utf-8")
+    assert set(re.findall(r'"(/api/[^"]*)"', text)) == SERVICE_PATHS

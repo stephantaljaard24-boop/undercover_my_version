@@ -16,5 +16,5 @@ test("the instructions page shows what the agent is told", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Working a claim" }),
   ).toBeVisible();
-  await expect(page.getByText("Record a second decision")).toBeVisible();
+  await expect(page.getByText("Accuse a customer of dishonesty")).toBeVisible();
 });

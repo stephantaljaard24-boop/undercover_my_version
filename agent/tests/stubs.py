@@ -12,6 +12,8 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from agent.undercover.backend import Backend
+from backend import rules, store
+from backend.db import engine
 
 
 class StubModel(GenericFakeChatModel):
@@ -96,6 +98,20 @@ def decision_call(**changes):
         **changes,
     }
     return call("ClaimDecision", **decision)
+
+
+COVERED = AIMessage(content="The delay is covered.")
+
+
+def approval(claim_id="CLM-1001", **changes):
+    """What the model says on a claim it approves: a look at it, a reply, a decision."""
+    return [call("get_claim", claim_id=claim_id), COVERED, decision_call(**changes)]
+
+
+def sign_off(claim_id):
+    """A handler signs the claim off, which the dashboard does through the backend."""
+    with engine().connect() as conn:
+        store.add_sign_off(conn, claim_id, rules.signing_handler("HND-01"))
 
 
 def script(*replies):

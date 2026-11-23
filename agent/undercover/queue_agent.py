@@ -9,7 +9,7 @@ from agent.harness.model import chat_model
 from agent.harness.steps import run_agent
 from agent.harness.todos import todo_tool
 from agent.harness.tools import text_tool
-from agent.undercover.backend import Backend, Refused
+from agent.undercover.backend import Backend, Refused, RunState
 from agent.undercover.claim_agent import ClaimAgent
 
 QUEUE_CALL_LIMIT = 400
@@ -50,6 +50,7 @@ def queue_tools(
                 return f"Refused: {claim_id} is {status}, not waiting."
             if not run.admit(claim_id):
                 return f"Refused: this run's cap of {run.limit} claims is used up."
+            backend.add_run_claim(run_id, claim_id)
             line = claims.work_claim(claim_id)
         print(line)
         return line
@@ -71,29 +72,54 @@ def queue_tools(
     return [list_waiting_claims, write_todos, work_claim, finish_run]
 
 
+def carry_on_stopped(backend: Backend, claims: ClaimAgent) -> None:
+    """Carry on every claim a stopped run or a sign-off left in progress."""
+    for claim in backend.claims_with("in_progress"):
+        print(claims.carry_on(claim.claim_id))
+
+
+def carry_on_prompt(stopped: RunState) -> str:
+    """Tell a new queue agent what the run it carries on has done so far."""
+    started = ", ".join(stopped.started) or "none"
+    todos = "\n".join(f"- {todo.text}: {todo.status}" for todo in stopped.todos)
+    return (
+        "Carry on a run that stopped before it finished. You may start up to "
+        f"{stopped.claim_limit} claims in all. Already started: {started}.\n"
+        f"Your to-do list so far:\n{todos or '- none'}"
+    )
+
+
 def run_queue(
     backend: Backend,
     claims: ClaimAgent,
     limit: int | None = None,
     llm: BaseChatModel | None = None,
 ) -> str:
-    """Run the queue agent on the waiting claims, up to a cap; return its summary."""
-    waiting = backend.waiting_claims()
-    if not waiting:
-        print("No claims are waiting.")
-        return ""
-    cap = limit or len(waiting)
-    run_id = backend.start_run(cap)
-    run = Run(cap)
+    """Carry on what was left, then run the queue agent; return its summary.
+
+    A run that was stopped is carried on with its cap, its to-do list and the
+    claims it started. Otherwise a new run starts, capped at the limit.
+    """
+    carry_on_stopped(backend, claims)
+    stopped = backend.current_run()
+    if stopped and not stopped.finished:
+        run_id, run = stopped.run_id, Run(stopped.claim_limit, stopped.started)
+        prompt = carry_on_prompt(stopped)
+    else:
+        waiting = backend.waiting_claims()
+        if not waiting:
+            print("No claims are waiting.")
+            return ""
+        cap = limit or len(waiting)
+        run_id, run = backend.start_run(cap), Run(cap)
+        prompt = f"Work the queue. You may start up to {cap} claims."
     agent = build_agent(
         llm or chat_model(),
         queue_tools(backend, run_id, run, claims),
         backend.queue_instructions(),
         QUEUE_CALL_LIMIT,
     )
-    last_reply = run_agent(
-        agent, f"Work the queue. You may start up to {cap} claims.", f"queue-{run_id}"
-    )
+    last_reply = run_agent(agent, prompt, f"queue-{run_id}")
     summary = run.summary or end_run(
         backend, run_id, run, last_reply or "The run ended without a summary."
     )

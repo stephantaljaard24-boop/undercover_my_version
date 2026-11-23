@@ -1,43 +1,31 @@
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 
 from agent.harness import graphs
 from agent.tests.stubs import (
+    COVERED,
     FlakyModel,
     Killed,
+    approval,
     backend_over,
     call,
     decision_call,
     script,
+    sign_off,
 )
 from agent.undercover.backend import Backend
 from agent.undercover.claim_agent import ClaimAgent
 from agent.undercover.claim_graph import build_claim_graph
 from agent.undercover.tools import claim_tools
-from backend import rules, schema, store
-from backend.db import engine
+from backend import schema, store
 from backend.main import app
 from backend.models import SectionRef
-
-COVERED = AIMessage(content="The delay is covered.")
-
-
-def approval(claim_id="CLM-1001", **changes):
-    """What the model says on a claim it approves: a look at it, a reply, a decision."""
-    return [call("get_claim", claim_id=claim_id), COVERED, decision_call(**changes)]
 
 
 def work(make_claims, llm, claim_id="CLM-1001"):
     return make_claims(llm).work_claim(claim_id)
-
-
-def sign_off(claim_id):
-    """A handler signs the claim off, which the dashboard does through the backend."""
-    with engine().connect() as conn:
-        store.add_sign_off(conn, claim_id, rules.signing_handler("HND-01"))
 
 
 def tools_of(backend):

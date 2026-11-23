@@ -224,15 +224,17 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 
 **Success criteria**
 
-- [ ] `uv run pytest -q agent` passes, with tests (a test client on the service, a stub model, an `InMemorySaver` and the backend's test client) that:
+- [x] `uv run pytest -q agent` passes, with tests (a test client on the service, a stub model, an `InMemorySaver` and the backend's test client) that:
   - [ ] `POST /api/claims/CLM-1008/resume` on a signed-off claim returns 202 and the claim ends `decided` with one payment; the same call again changes nothing.
   - [ ] The same call on a claim that is still `awaiting_sign_off`, or whose thread isn't paused, does nothing.
   - [ ] `run_queue` carries on a stopped claim and a signed-off claim before it starts new ones, and carried-on claims don't use the cap.
   - [ ] A stopped run (the first process dies after two claims) is continued by the next call: the same run id, the same cap, the already started claims not counted twice, and one summary at the end.
   - [ ] The agent's operation has an `operation_id`, a docstring and no optional inputs.
-- [ ] `agent/tests/test_layout.py` knows the service as an entry point nobody imports, and checks that the backend's route paths are written in `backend.py` only and the service's route path in `service.py` and `backend/agent_client.py` only.
+- [x] `agent/tests/test_layout.py` knows the service as an entry point nobody imports, and checks that the backend's route paths are written in `backend.py` only and the service's route path in `service.py` and `backend/agent_client.py` only.
 - [ ] `npm run dev` starts three processes on Windows, and `curl.exe -s http://127.0.0.1:8002/api/health` answers.
-- [ ] `npm run check:python` and `npm run check` pass.
+- [x] `npm run check:python` and `npm run check` pass.
+
+*Not yet done: `npm run dev` as a whole. `npm run dev:agent` starts the service on Windows and `curl.exe -s http://127.0.0.1:8002/api/health` answers, but the backend started with `.env` connects to Supabase at start-up, which the network doesn't allow yet.*
 
 ## Phase 6: the whole thing, live, and the documents
 

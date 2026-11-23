@@ -115,6 +115,16 @@ class QueuedClaim(BaseModel):
     status: str
 
 
+class RunState(BaseModel):
+    """A run of the queue agent: its cap, its to-do list and what it has started."""
+
+    run_id: int
+    claim_limit: int
+    finished: bool
+    todos: list[TodoItem]
+    started: list[str]
+
+
 class Backend:
     """Asks the UnderCover backend for what the agent needs, in the product's terms."""
 
@@ -154,11 +164,13 @@ class Backend:
         """The claim in full, as the backend sends it."""
         return self._send("GET", f"/api/claims/{claim_id}").text
 
-    def waiting_claims(self) -> list[QueuedClaim]:
+    def claims_with(self, status: str) -> list[QueuedClaim]:
+        """The claims in the queue that have this status."""
         claims = self._send("GET", "/api/claims").json()
-        return [
-            QueuedClaim(**claim) for claim in claims if claim["status"] == "waiting"
-        ]
+        return [QueuedClaim(**claim) for claim in claims if claim["status"] == status]
+
+    def waiting_claims(self) -> list[QueuedClaim]:
+        return self.claims_with("waiting")
 
     def policy_text(self, policy_id: str) -> str:
         return self._send("GET", f"/api/policies/{policy_id}").text
@@ -239,6 +251,15 @@ class Backend:
         """Start a run with a cap on its claims, and return its id."""
         body = {"claim_limit": claim_limit}
         return self._send("POST", "/api/runs", body).json()["run_id"]
+
+    def current_run(self) -> RunState | None:
+        """The latest run, or None if there has been none."""
+        run = self._send("GET", "/api/runs/current").json()
+        return RunState(**run) if run else None
+
+    def add_run_claim(self, run_id: int, claim_id: str) -> None:
+        """Record that the run has started a claim."""
+        self._send("POST", f"/api/runs/{run_id}/claims", {"claim_id": claim_id})
 
     def set_todos(self, run_id: int, todos: list[TodoItem]) -> None:
         body = {"todos": [todo.model_dump() for todo in todos]}

@@ -7,9 +7,9 @@ from collections.abc import Iterable
 class Run:
     """Which items a run has started, its cap, and the lock that keeps work to one."""
 
-    def __init__(self, limit: int):
+    def __init__(self, limit: int, started: Iterable[str] = ()):
         self.limit = limit
-        self.started: set[str] = set()
+        self.started: set[str] = set(started)
         self.summary: str | None = None
         self.lock = threading.Lock()
 
