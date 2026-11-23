@@ -247,7 +247,7 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 
 **Success criteria**
 
-- [ ] With `.env` moved out of the way (renamed, then put back), `npm run check` is green: no Supabase, Langfuse or OpenRouter is needed.
+- [x] With `.env` moved out of the way (renamed, then put back), `npm run check` is green: no Supabase, Langfuse or OpenRouter is needed. (Checked: `.env` renamed, `npm run check` green, `.env` put back.)
 - [ ] `npm run seed`, then `npm run dev`, then `uv run -m agent --limit 5` on the default model works five claims. I report each decision next to the last hand check in `docs/STATUS.md` (CLM-1001 $420.00, CLM-1008 and CLM-1011 waiting for sign-off, CLM-1018 referred, CLM-1010 declined), and say why if one differs, without opening `data/evals/`.
 - [ ] A claim over the limit shows `awaiting_sign_off` with the payout blocked. Through the Playwright MCP server at `http://localhost:5173`, choosing a handler and clicking "Sign off" shows "Paid" with the handler and the time within five seconds, with the run's command line finished and the agent's service doing the work.
 - [ ] Kill the command line process (`taskkill /T /F` on the whole tree) after a claim's first steps appear, check the claim is `in_progress` with its thread, then run `uv run -m agent --limit 5` again: it carries on with the same thread id, `attempts` is unchanged, and the claim has one decision. The stopped run is finished by that run, with one summary.
@@ -255,21 +255,23 @@ Dashboard: `SignOffPanel.tsx` (new, so `ClaimPage.tsx` stays small), plus change
 - [ ] Through Langfuse's v2 observations API (the traces endpoint is gone), the held claim's session has at least two distinct `trace_id`s, from before and after the sign-off, and the session also shows a trace for each claim in the run.
 - [ ] `docs/SPEC.md`, `docs/TECH_STACK.md`, `docs/PROCESS.md` and `docs/STATUS.md` describe the product as it now is, and every criterion in this plan is ticked.
 
+*Not yet done: every live criterion above (the reseed and five-claim run on Supabase, the sign-off on the dashboard, the killed run, the connection count, and the Langfuse sessions before and after the sign-off), and so the last criterion, because it asks for every criterion to be ticked. This machine can't reach Supabase's session pooler on port 5432 (it times out; port 443 works). The documents are updated to describe the product as it now is, and `docs/STATUS.md` says which checks are still to do.*
+
 ## Phase 7: review
 
 Read the whole diff as a reviewer would, fix what I'd ask to change, then run `npm run check`. The checks from `docs/CODE_STANDARDS.md`, each with the search or test that shows it:
 
-- [ ] **1. Simple.** The graph has the six nodes in the plan and no more; I list every new module and what it does, and cut anything with no use.
-- [ ] **2. Comments only when necessary.** `rg -n "^\s*#" backend agent --glob "!**/tests/**"` shows only comments that say why.
-- [ ] **3. Concise, no emojis, no README.** `git status` shows no product README and no change to the root `README.md`; `rg -n "[^\x00-\x7F]" backend agent dashboard/src e2e` finds no emoji.
-- [ ] **4. Not over-defensive.** I list each `try` and `except` I added; each is for a reason in the brief (an unreachable agent, a failed claim), and the rest are gone.
-- [ ] **5. uv.** `rg -n "python3" package.json lefthook.yml docs agent backend` finds nothing; every Python script in `package.json` is a `uv run` command.
-- [ ] **6. TypeScript strict, no `any`.** `rg -n "\bany\b" dashboard/src e2e --glob "*.ts*"` finds none that are types; `tsc` passes.
-- [ ] **7. Money.** `rg -n "float\(|: float|Float" backend agent` finds nothing that holds an amount; the payout code uses `Decimal`; `dashboard` keeps cents.
-- [ ] **8. One job per module, named for it, under 300 lines.** The layout tests in `backend` and `agent` pass; I check `store.py`, `claim_graph.py` and `ClaimPage.tsx` by line count.
-- [ ] **9. Say each thing once.** `rg -n "/api/" agent` finds paths only in `undercover/backend.py` and the service's own route; `rg -n "payout_approval_limit|1000" backend agent` finds the limit read only in `rules.approval_limit()`; `rg -n "UNDERCOVER_AGENT|8002"` finds the address in `agent_client.py` and `package.json` only; the layout tests show queries only in `store.py`, `db.py` and `schema.py`.
-- [ ] **10. Layers point one way.** `agent/tests/test_layout.py` and `backend/tests/test_layout.py` pass: the harness imports nothing from the product, nothing imports an entry point (`__main__`, `service`), nothing in `agent/` imports `backend`.
-- [ ] **11. Typed answers.** `rg -n "\.json\(\)|\.text|status_code" agent` finds those only in `backend.py` and the stubs; the tools return models or text built from them.
-- [ ] **12. Instructions are goals and limits.** `test_instructions.py` passes: no numbered steps, no tool names, under 400 words each; I show the word counts before and after.
+- [x] **1. Simple.** The graph has the six nodes in the plan and no more; I list every new module and what it does, and cut anything with no use.
+- [x] **2. Comments only when necessary.** `rg -n "^\s*#" backend agent --glob "!**/tests/**"` shows only comments that say why.
+- [x] **3. Concise, no emojis, no README.** `git status` shows no product README and no change to the root `README.md`; `rg -n "[^\x00-\x7F]" backend agent dashboard/src e2e` finds no emoji.
+- [x] **4. Not over-defensive.** I list each `try` and `except` I added; each is for a reason in the brief (an unreachable agent, a failed claim), and the rest are gone.
+- [x] **5. uv.** `rg -n "python3" package.json lefthook.yml docs agent backend` finds nothing; every Python script in `package.json` is a `uv run` command.
+- [x] **6. TypeScript strict, no `any`.** `rg -n "\bany\b" dashboard/src e2e --glob "*.ts*"` finds none that are types; `tsc` passes.
+- [x] **7. Money.** `rg -n "float\(|: float|Float" backend agent` finds nothing that holds an amount; the payout code uses `Decimal`; `dashboard` keeps cents.
+- [x] **8. One job per module, named for it, under 300 lines.** The layout tests in `backend` and `agent` pass; I check `store.py`, `claim_graph.py` and `ClaimPage.tsx` by line count.
+- [x] **9. Say each thing once.** `rg -n "/api/" agent` finds paths only in `undercover/backend.py` and the service's own route; `rg -n "payout_approval_limit|1000" backend agent` finds the limit read only in `rules.approval_limit()`; `rg -n "UNDERCOVER_AGENT|8002"` finds the address in `agent_client.py` and `package.json` only; the layout tests show queries only in `store.py`, `db.py` and `schema.py`.
+- [x] **10. Layers point one way.** `agent/tests/test_layout.py` and `backend/tests/test_layout.py` pass: the harness imports nothing from the product, nothing imports an entry point (`__main__`, `service`), nothing in `agent/` imports `backend`.
+- [x] **11. Typed answers.** `rg -n "\.json\(\)|\.text|status_code" agent` finds those only in `backend.py` and the stubs; the tools return models or text built from them.
+- [x] **12. Instructions are goals and limits.** `test_instructions.py` passes: no numbered steps, no tool names, under 400 words each; I show the word counts before and after.
 - [ ] `git log` shows a commit for each phase with the hook passing, no `--no-verify`, nothing pushed, and no file from outside the build in any commit.
 - [ ] `npm run check` passes, and I report the results.

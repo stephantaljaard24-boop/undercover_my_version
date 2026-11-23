@@ -2,14 +2,14 @@ import { useState } from "react";
 import { fetchHandlers, signOff } from "./api";
 import { usePolling } from "./usePolling";
 
-const loadOnce = () => null;
+const stopAfterFirstLoad = () => null;
 
 /** Lets a handler sign off a payout that is waiting for one. */
 export function SignOffPanel({
   claimId,
   onSignedOff,
 }: Readonly<{ claimId: string; onSignedOff: () => void }>) {
-  const { data } = usePolling(fetchHandlers, loadOnce);
+  const { data } = usePolling(fetchHandlers, stopAfterFirstLoad);
   const [chosen, setChosen] = useState("");
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);

@@ -1,12 +1,14 @@
 # Process
 
-`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend and the dashboard.
+`uv sync` and `npm install` at the repo root install everything, including a git pre-commit hook. `npm run dev` starts the backend, the dashboard and the agent's service, with `.env` passed to the backend and the service. `npm run seed` resets the Supabase database to the starting queue, and `uv run -m backend.seed` resets the SQLite one.
 
 `npm run check` runs every check:
 
 - Python: ruff (lint and format), pyright, and pytest with 80% coverage
 - TypeScript: ESLint, Prettier, tsc, and vitest with 80% coverage
 - Playwright end-to-end tests
+
+The checks need no `.env`: the Python tests run on SQLite and an in-memory saver, the end-to-end tests on their own backend, database and stand-in for the agent's service, and none reaches Supabase, Langfuse or OpenRouter.
 
 The pre-commit hook runs the format, lint, type and unit test checks on every commit.
 
@@ -36,7 +38,7 @@ When the last phase is done, read the whole diff as a reviewer would and fix wha
 ## Rules
 
 - Add tests with each change. Tests never call a model, the end-to-end tests included: use a stub model, or test the screens with data already in place.
-- When a build changes the agent, run it on one claim with a real model before you hand the work over, with `MODEL_NAME=openrouter/free` unless asked otherwise, and report what it decided. This is a check by hand, not a test.
+- When a build changes the agent, run it on one claim with a real model before you hand the work over, with `MODEL_NAME=openrouter/free` unless asked otherwise, and report what it decided. This is a check by hand, not a test. For any live run with the real model, reseed first and cap the run at five claims.
 - Outside a plan, commit each change once you have checked it.
 - Before you add a call, query, path or constant, search for it. If it exists, use it. If it is written in a second place, move both to one.
 - `npm run check` includes the layout tests, which fail on a backend path or SQL written in the wrong place, an import that points the wrong way, a vague file name and a Python source file over 300 lines.
