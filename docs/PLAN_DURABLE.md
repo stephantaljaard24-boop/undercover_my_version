@@ -273,5 +273,5 @@ Read the whole diff as a reviewer would, fix what I'd ask to change, then run `n
 - [x] **10. Layers point one way.** `agent/tests/test_layout.py` and `backend/tests/test_layout.py` pass: the harness imports nothing from the product, nothing imports an entry point (`__main__`, `service`), nothing in `agent/` imports `backend`.
 - [x] **11. Typed answers.** `rg -n "\.json\(\)|\.text|status_code" agent` finds those only in `backend.py` and the stubs; the tools return models or text built from them.
 - [x] **12. Instructions are goals and limits.** `test_instructions.py` passes: no numbered steps, no tool names, under 400 words each; I show the word counts before and after.
-- [ ] `git log` shows a commit for each phase with the hook passing, no `--no-verify`, nothing pushed, and no file from outside the build in any commit.
-- [ ] `npm run check` passes, and I report the results.
+- [x] `git log` shows a commit for each phase with the hook passing, no `--no-verify`, nothing pushed, and no file from outside the build in any commit.
+- [x] `npm run check` passes, and I report the results. (176 Python tests at 98% coverage, 28 dashboard tests at 98.7% and 13 end-to-end tests, with ruff, pyright, ESLint, Prettier and tsc clean.)
